@@ -1,0 +1,39 @@
+{
+  "name": "pc-control-agent",
+  "version": "1.1.0",
+  "description": "PC Control Hub Agent with GUI",
+  "author": "Nurbek",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder build --win --x64",
+    "pkg-legacy": "pkg index.js --targets node18-win-x64 --output dist/pc-control-agent-console.exe"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
+    "iconv-lite": "^0.7.2",
+    "node-notifier": "^10.0.1",
+    "node-os-utils": "^2.0.1",
+    "node-ssh": "^13.2.1",
+    "screenshot-desktop": "^1.15.3",
+    "socket.io-client": "^4.8.3",
+    "systeminformation": "^5.31.3"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-winstaller": "^5.4.0"
+  },
+  "build": {
+    "appId": "com.pccontrol.agent",
+    "productName": "PC Control Agent",
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "directories": {
+      "output": "dist-gui"
+    }
+  }
+}

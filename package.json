@@ -1,0 +1,22 @@
+{
+  "name": "diplom-project",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "server:start": "npm --prefix server run start",
+    "client": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "client:lint": "npm --prefix client run lint",
+    "agent": "npm --prefix agent run start",
+    "agent:dev": "npm --prefix agent run dev",
+    "dev": "echo Run `npm run server` and `npm run client` in separate terminals",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
