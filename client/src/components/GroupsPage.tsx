@@ -4,7 +4,7 @@ import { Plus, Trash2, FolderOpen, UserPlus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 interface Group {
   name: string;
@@ -122,9 +122,9 @@ export default function GroupsPage() {
                       onChange={(e) => setAssignAgent({ ...assignAgent, agentId: e.target.value })}
                       className={`flex-1 px-2 py-1.5 text-sm rounded-lg border ${isDark ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
                     >
-                      <option value="">{t('scripts.selectDevice')}</option>
+                      <option value="" className="text-gray-900 bg-white">{t('scripts.selectDevice')}</option>
                       {unassigned.map((a) => (
-                        <option key={a.id} value={a.id}>{a.hostname}</option>
+                        <option key={a.id} value={a.id} className="text-gray-900 bg-white">{a.hostname}</option>
                       ))}
                     </select>
                     <button

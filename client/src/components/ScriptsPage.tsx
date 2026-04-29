@@ -5,7 +5,7 @@ import { Plus, Play, Trash2, FileCode, Terminal } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 interface Script {
   id: string;
@@ -118,9 +118,9 @@ export default function ScriptsPage() {
           onChange={(e) => setSelectedAgent(e.target.value)}
           className={`flex-1 text-sm ${isDark ? 'bg-transparent text-white' : 'bg-transparent text-gray-900'} outline-none`}
         >
-          <option value="">{t('scripts.selectDevice')}</option>
+          <option value="" className="text-gray-900 bg-white">{t('scripts.selectDevice')}</option>
           {onlineAgents.map((a) => (
-            <option key={a.id} value={a.id}>{a.hostname} ({a.ip})</option>
+            <option key={a.id} value={a.id} className="text-gray-900 bg-white">{a.hostname} ({a.ip})</option>
           ))}
         </select>
       </div>

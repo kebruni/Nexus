@@ -6,7 +6,7 @@ import { Monitor, TerminalSquare, ChevronDown } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 export default function TerminalPage() {
   const [agents, setAgents] = useState<Agent[]>([]);

@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { TranslationKey } from '../i18n/translations';
 import type { Agent } from '../types';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 function OsIcon({ platform, className }: { className?: string; platform: string }) {
   if (platform === 'win32') {

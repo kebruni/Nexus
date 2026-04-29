@@ -106,7 +106,7 @@ function SortHeader({ className = '', field, isDark, label, onToggle, sortKey }:
 
 export default function FileManager({ agentId }: FileManagerProps) {
   const { isDark } = useTheme();
-  const [currentPath, setCurrentPath] = useState('C:\\');
+  const [currentPath, setCurrentPath] = useState('');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [parentPath, setParentPath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -170,7 +170,7 @@ export default function FileManager({ agentId }: FileManagerProps) {
 
     socket.on('file:list:result', handleResult);
     socket.on('file:content:result', handleFileContent);
-    socket.emit('file:list', { agentId, dirPath: 'C:\\' });
+    socket.emit('file:list', { agentId, dirPath: '' });
 
     return () => {
       socket.off('file:list:result', handleResult);

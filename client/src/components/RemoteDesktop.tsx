@@ -46,10 +46,12 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const [showRemoteCursor, setShowRemoteCursor] = useState(true);
   const [smoothCursor, setSmoothCursor] = useState(true);
   const [autoHideLocalCursor, setAutoHideLocalCursor] = useState(false);
+  const [showAdminCursor, setShowAdminCursor] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   
   const targetCursorRef = useRef({ x: 0, y: 0 });
   const currentCursorRef = useRef({ x: 0, y: 0 });
+  const adminCursorRef = useRef({ x: 0, y: 0, visible: false });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const screenAreaRef = useRef<HTMLDivElement>(null);
@@ -75,17 +77,61 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Shared label drawer — small rounded badge with text next to a cursor.
+  const drawCursorLabel = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    text: string,
+    bg: string,
+    fg: string
+  ) => {
+    // Scale label to canvas resolution so it stays readable on hi-DPI streams.
+    const scale = Math.max(1, ctx.canvas.width / 1024);
+    const fontSize = Math.round(11 * scale);
+    const padX = 6 * scale;
+    const padY = 3 * scale;
+    const offsetX = 14 * scale;
+    const offsetY = 4 * scale;
+
+    ctx.save();
+    ctx.font = `600 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    const metrics = ctx.measureText(text);
+    const width = metrics.width + padX * 2;
+    const height = fontSize + padY * 2;
+    const bx = x + offsetX;
+    const by = y - height / 2 + offsetY;
+
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 4 * scale;
+    ctx.fillStyle = bg;
+    const radius = height / 2;
+    ctx.beginPath();
+    ctx.moveTo(bx + radius, by);
+    ctx.arcTo(bx + width, by, bx + width, by + height, radius);
+    ctx.arcTo(bx + width, by + height, bx, by + height, radius);
+    ctx.arcTo(bx, by + height, bx, by, radius);
+    ctx.arcTo(bx, by, bx + width, by, radius);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = fg;
+    ctx.fillText(text, bx + padX, by + height / 2);
+    ctx.restore();
+  };
+
+  // Cyan cursor — represents the actual cursor on the remote PC.
   const drawRemoteCursor = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     if (!ctx || x === 0 || y === 0) return;
 
-    // Draw a custom cursor (crosshair with glow)
     const size = 12;
 
-    // Glow effect
+    ctx.save();
     ctx.shadowColor = 'rgba(0, 255, 255, 0.6)';
     ctx.shadowBlur = 10;
 
-    // Draw white circle with cyan border
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
@@ -97,25 +143,53 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Draw crosshair
     ctx.strokeStyle = '#00FFFF';
     ctx.lineWidth = 1;
     ctx.globalAlpha = 0.6;
-    
-    // Vertical line
     ctx.beginPath();
     ctx.moveTo(x, y - size);
     ctx.lineTo(x, y + size);
     ctx.stroke();
-
-    // Horizontal line
     ctx.beginPath();
     ctx.moveTo(x - size, y);
     ctx.lineTo(x + size, y);
     ctx.stroke();
-
     ctx.globalAlpha = 1;
     ctx.shadowColor = 'transparent';
+    ctx.restore();
+
+    drawCursorLabel(ctx, x, y, 'PC', 'rgba(0, 200, 220, 0.92)', '#00121A');
+  };
+
+  // Orange arrow — represents where the admin (this dashboard) is pointing.
+  const drawAdminCursor = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    if (!ctx) return;
+    const scale = Math.max(1, ctx.canvas.width / 1024);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 6 * scale;
+
+    // Standard arrow-cursor shape (Windows/macOS-style).
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 14 * scale, y + 14 * scale);
+    ctx.lineTo(x + 6 * scale, y + 14 * scale);
+    ctx.lineTo(x + 10 * scale, y + 22 * scale);
+    ctx.lineTo(x + 6 * scale, y + 24 * scale);
+    ctx.lineTo(x + 2 * scale, y + 16 * scale);
+    ctx.lineTo(x - 4 * scale, y + 20 * scale);
+    ctx.closePath();
+    ctx.fillStyle = '#FF6B2C';
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 1.5 * scale;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
+    ctx.restore();
+
+    drawCursorLabel(ctx, x, y, 'admin', 'rgba(255, 107, 44, 0.95)', '#1A0A00');
   };
 
   useEffect(() => {
@@ -212,8 +286,12 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
 
         // Draw remote cursor if enabled
         if (showRemoteCursor && (currentCursorRef.current.x !== 0 || currentCursorRef.current.y !== 0)) {
-          // Add a simple pulse effect based on time if you wanted, but static glow is fine
           drawRemoteCursor(ctx, currentCursorRef.current.x, currentCursorRef.current.y);
+        }
+
+        // Draw admin cursor (this dashboard) if enabled, while input is active.
+        if (showAdminCursor && inputEnabled && adminCursorRef.current.visible) {
+          drawAdminCursor(ctx, adminCursorRef.current.x, adminCursorRef.current.y);
         }
       }
 
@@ -225,7 +303,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [streaming, smoothCursor, showRemoteCursor]);
+  }, [streaming, smoothCursor, showRemoteCursor, showAdminCursor, inputEnabled]);
 
   const startStreaming = () => {
     const socket = getSocket();
@@ -294,19 +372,32 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!streaming) return;
-    
-    // Throttle mouse movement to reduce event spam
+
+    // Always update the local admin cursor position so the overlay tracks the
+    // mouse smoothly, even if outbound 'move' events are throttled.
+    const coords = getCanvasCoordinates(e);
+    if (coords) {
+      adminCursorRef.current = { x: coords.x, y: coords.y, visible: true };
+    }
+
+    // Throttle outbound mouse movement to reduce socket spam.
     const now = Date.now();
     if (now - lastMouseMoveRef.current < mouseMoveThrottleRef.current) return;
     lastMouseMoveRef.current = now;
 
-    const coords = getCanvasCoordinates(e);
     if (!coords) return;
 
-    // Send movement event only if input enabled
     if (inputEnabled) {
       emitMouseEvent(coords.x, coords.y, 'move', 'left');
     }
+  };
+
+  const handleCanvasMouseEnter = () => {
+    adminCursorRef.current = { ...adminCursorRef.current, visible: true };
+  };
+
+  const handleCanvasMouseLeave = () => {
+    adminCursorRef.current = { ...adminCursorRef.current, visible: false };
   };
 
   const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -580,7 +671,12 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
               <span className={`text-[11px] font-medium transition ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-gray-500 group-hover:text-gray-700'}`}>Smooth</span>
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer group">
-              <input type="checkbox" checked={autoHideLocalCursor} onChange={e => setAutoHideLocalCursor(e.target.checked)} 
+              <input type="checkbox" checked={showAdminCursor} onChange={e => setShowAdminCursor(e.target.checked)}
+                className={`rounded border-slate-600 text-orange-500 focus:ring-orange-500/30 bg-transparent transition`} />
+              <span className={`text-[11px] font-medium transition ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-gray-500 group-hover:text-gray-700'}`}>My Cursor</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer group">
+              <input type="checkbox" checked={autoHideLocalCursor} onChange={e => setAutoHideLocalCursor(e.target.checked)}
                 className={`rounded border-slate-600 text-indigo-500 focus:ring-indigo-500/30 bg-transparent transition`} />
               <span className={`text-[11px] font-medium transition ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-gray-500 group-hover:text-gray-700'}`}>Hide Local</span>
             </label>
@@ -693,10 +789,16 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
               onMouseDown={handleCanvasMouseDown}
               onMouseUp={handleCanvasMouseUp}
               onMouseMove={handleCanvasMouseMove}
+              onMouseEnter={handleCanvasMouseEnter}
+              onMouseLeave={handleCanvasMouseLeave}
               onDoubleClick={handleCanvasDoubleClick}
               onContextMenu={handleCanvasContextMenu}
               onWheel={handleCanvasWheel}
-              className={`max-w-full max-h-full object-contain shadow-2xl ${autoHideLocalCursor && inputEnabled ? 'cursor-none' : (inputEnabled ? 'cursor-crosshair' : 'cursor-default')}`}
+              className={`max-w-full max-h-full object-contain shadow-2xl ${
+                inputEnabled
+                  ? (showAdminCursor || autoHideLocalCursor ? 'cursor-none' : 'cursor-crosshair')
+                  : 'cursor-default'
+              }`}
             />
           ) : (
             <div className="flex flex-col items-center justify-center text-center p-10 rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-sm max-w-sm w-full mx-auto shadow-2xl">
