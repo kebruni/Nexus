@@ -4,7 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Language } from '../i18n/translations';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 const LANG_LABELS: Record<Language, string> = { en: 'EN', ru: 'RU', kz: 'KZ' };
 const LANG_ORDER: Language[] = ['en', 'ru', 'kz'];

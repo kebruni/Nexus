@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { connectSocket, disconnectSocket } from './api/socket';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 const Login = lazy(() => import('./components/Login'));
 const Layout = lazy(() => import('./components/Layout'));

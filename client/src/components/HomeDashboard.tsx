@@ -6,7 +6,7 @@ import { Laptop, Wifi, Activity, BellRing, ArrowRight, Download } from 'lucide-r
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 function useCountUp(target: number, duration = 600) {
   const [value, setValue] = useState(0);

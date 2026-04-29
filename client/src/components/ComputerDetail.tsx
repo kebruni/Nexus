@@ -33,7 +33,7 @@ import {
 } from 'recharts';
 import Services from './Services';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';

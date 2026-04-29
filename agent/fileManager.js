@@ -6,7 +6,8 @@ const path = require('path');
  */
 function listDirectory(dirPath) {
   try {
-    const resolvedPath = path.resolve(dirPath || 'C:\\');
+    const defaultRoot = process.platform === 'win32' ? 'C:\\' : '/';
+    const resolvedPath = path.resolve(dirPath || defaultRoot);
     const items = fs.readdirSync(resolvedPath, { withFileTypes: true });
 
     const drives = [];

@@ -1,6 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 
-const BACKEND_ORIGIN = 'http://localhost:3000';
+// Empty origin → socket.io connects to the page origin, which is proxied to the
+// backend in dev (vite.config.ts) and served from the same host in production.
+const BACKEND_ORIGIN = '';
 
 let socket: Socket | null = null;
 

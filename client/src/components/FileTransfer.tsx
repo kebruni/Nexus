@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 /* в”Ђв”Ђ helpers в”Ђв”Ђ */
 function formatBytes(bytes: number): string {
@@ -671,7 +671,11 @@ export default function FileTransfer() {
                         <select 
                           className={`bg-transparent border-none appearance-none font-semibold focus:outline-none cursor-pointer p-0 m-0 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}
                           value={remote.drives.find(d => remote.path.startsWith(d)) || remote.drives[0]}
-                          onChange={(e) => navigateRemote(e.target.value + '\\')}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            // POSIX root '/' is already a complete path; only append separator for Windows drive letters like 'C:'.
+                            navigateRemote(v.startsWith('/') ? v : v + '\\');
+                          }}
                           title="Выбрать диск устройства"
                         >
                           {remote.drives.map(d => (
@@ -679,7 +683,7 @@ export default function FileTransfer() {
                           ))}
                         </select>
                     ) : (
-                        <span className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>C:</span>
+                        <span className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>/</span>
                     )}
                  </div>
                  
