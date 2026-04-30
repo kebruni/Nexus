@@ -85,6 +85,18 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+// ── Static dashboard (production build) ───────────────────
+// When the client has been built (`npm --prefix client run build`),
+// serve it from the same origin so admins can open the dashboard at
+// http://<server-host>:<PORT> without needing the Vite dev server.
+// API routes registered below keep priority because they're declared
+// before the SPA fallback.
+const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
+const HAS_CLIENT_DIST = fs.existsSync(path.join(CLIENT_DIST, 'index.html'));
+if (HAS_CLIENT_DIST) {
+  app.use(express.static(CLIENT_DIST));
+}
+
 // ── REST API Routes ───────────────────────────────────────
 
 // Health check
@@ -783,18 +795,46 @@ function findAgentSocket(agentId) {
   return null;
 }
 
+// ── SPA fallback (any non-API route serves the dashboard) ─
+// Must be registered AFTER every API route so /api/* keeps priority.
+if (HAS_CLIENT_DIST) {
+  app.get(/^\/(?!api\/|socket\.io\/|agent\/|dashboard\/|AgentSetup\.exe$).*/, (req, res) => {
+    res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+  });
+}
+
 // ── Start Server ──────────────────────────────────────────
-server.listen(config.PORT, () => {
-  console.log(`
-╔══════════════════════════════════════════════════════════╗
-║              PC Control Hub — Server                     ║
-║══════════════════════════════════════════════════════════║
-║  HTTP Server:    http://localhost:${config.PORT}                ║
-║  Socket.IO:      ws://localhost:${config.PORT}                  ║
-║  Agent NS:       /agent                                  ║
-║  Dashboard NS:   /dashboard                              ║
-╚══════════════════════════════════════════════════════════╝
-  `);
+function listInterfaces() {
+  const out = [];
+  for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
+    for (const a of addrs || []) {
+      if (a.family === 'IPv4' && !a.internal) {
+        out.push({ name, address: a.address });
+      }
+    }
+  }
+  return out;
+}
+
+const HOST = process.env.HOST || '0.0.0.0';
+server.listen(config.PORT, HOST, () => {
+  const ifaces = listInterfaces();
+  console.log('');
+  console.log('============================================================');
+  console.log('              PC Control Hub — Server');
+  console.log('============================================================');
+  console.log(`  Listening on:    ${HOST}:${config.PORT}`);
+  console.log(`  Dashboard:       http://localhost:${config.PORT}${HAS_CLIENT_DIST ? '' : '   (client/dist not built — run `npm run client:build`)'}`);
+  if (ifaces.length) {
+    console.log('  LAN access:');
+    for (const iface of ifaces) {
+      console.log(`    - http://${iface.address}:${config.PORT}    (${iface.name})`);
+    }
+    console.log('  Agents should use one of the LAN URLs above as SERVER_URL.');
+  }
+  console.log('  Agent NS:        /agent      Dashboard NS: /dashboard');
+  console.log('============================================================');
+  console.log('');
   logSecurityWarnings();
 });
 
