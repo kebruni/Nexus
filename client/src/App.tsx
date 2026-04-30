@@ -48,14 +48,21 @@ function App() {
     const saved = localStorage.getItem('pc-hub-token');
     if (saved) {
       fetch(`${API_BASE}/auth/verify`, { headers: { Authorization: `Bearer ${saved}` } })
-        .then((response) => {
-          if (response.ok) {
-            setToken(saved);
-            connectSocket(saved);
+        .then(async (response) => {
+          if (!response.ok) {
+            localStorage.removeItem('pc-hub-token');
             return;
           }
-
-          localStorage.removeItem('pc-hub-token');
+          const body = await response.json().catch(() => ({}));
+          if (body && body.mustChangePassword) {
+            // Token is valid but the account still owes a password change;
+            // force the user back to the login flow (which renders the
+            // change-password panel).
+            localStorage.removeItem('pc-hub-token');
+            return;
+          }
+          setToken(saved);
+          connectSocket(saved);
         })
         .catch(() => localStorage.removeItem('pc-hub-token'))
         .finally(() => setChecking(false));

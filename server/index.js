@@ -182,7 +182,10 @@ app.post('/api/auth/login', (req, res) => {
 
 // Verify token
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
-  res.json({ valid: true, user: req.user, mustChangePassword: isMustChangePassword() });
+  // Reflect the token's own `mustChangePassword` claim so the client treats
+  // a sticky pre-change-password session as still pending, even after the
+  // server-side flag has already been cleared by an earlier change.
+  res.json({ valid: true, user: req.user, mustChangePassword: !!req.user.mustChangePassword });
 });
 
 // Change admin password (used to clear the mustChangePassword flag set on first boot).

@@ -139,6 +139,15 @@ function verifyToken(token) {
   }
 }
 
+// Endpoints that remain reachable while a session still carries the
+// `mustChangePassword` claim. Everything else is locked until the password
+// is changed and the client re-authenticates.
+const PASSWORD_CHANGE_WHITELIST = new Set([
+  '/api/auth/change-password',
+  '/api/auth/verify',
+  '/api/auth/logout',
+]);
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -149,6 +158,12 @@ function authMiddleware(req, res, next) {
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token' });
   }
+  if (decoded.mustChangePassword && !PASSWORD_CHANGE_WHITELIST.has(req.path)) {
+    return res.status(403).json({
+      error: 'Password change required',
+      mustChangePassword: true,
+    });
+  }
   req.user = decoded;
   next();
 }
@@ -158,6 +173,9 @@ function socketAuthMiddleware(socket, next) {
   if (!token) return next(new Error('Authentication required'));
   const decoded = verifyToken(token);
   if (!decoded) return next(new Error('Invalid token'));
+  if (decoded.mustChangePassword) {
+    return next(new Error('Password change required'));
+  }
   socket.user = decoded;
   next();
 }
