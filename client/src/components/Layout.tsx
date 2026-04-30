@@ -20,6 +20,7 @@ import {
   FileCode,
   Users,
   ShieldCheck,
+  Webhook,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -80,6 +81,7 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/scripts', 'nav.scripts'],
       ['/dashboard/groups', 'nav.groups'],
       ['/dashboard/users', 'nav.users'],
+      ['/dashboard/webhooks', 'nav.webhooks'],
       ['/dashboard/computer', 'nav.computerDetails'],
     ];
     for (const [prefix, key] of map) {
@@ -229,6 +231,10 @@ export default function Layout({ onLogout }: LayoutProps) {
               <NavLink to="/dashboard/users" className={linkClass} onClick={closeSidebar}>
                 <ShieldCheck className="w-4 h-4" />
                 {t('nav.users')}
+              </NavLink>
+              <NavLink to="/dashboard/webhooks" className={linkClass} onClick={closeSidebar}>
+                <Webhook className="w-4 h-4" />
+                {t('nav.webhooks')}
               </NavLink>
             </div>
           )}

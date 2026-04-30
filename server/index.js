@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config');
 const store = require('./store');
+const notifier = require('./notifier');
 const {
   authenticate,
   changeAdminPassword,
@@ -268,6 +269,59 @@ app.put('/api/users/:username/password', authMiddleware, requireRole('admin'), (
   res.json({ success: true });
 });
 
+// ── Webhooks (alert delivery channels — admin only) ──────────
+const WEBHOOK_TYPES = ['telegram', 'discord', 'slack', 'generic'];
+
+function validateWebhookPayload(body) {
+  if (!body || typeof body !== 'object') return 'invalid body';
+  if (!body.name || typeof body.name !== 'string' || body.name.length > 80) return 'name required (≤80 chars)';
+  if (!WEBHOOK_TYPES.includes(body.type)) return `type must be one of ${WEBHOOK_TYPES.join(', ')}`;
+  const cfg = body.config || {};
+  if (body.type === 'telegram' && (!cfg.botToken || !cfg.chatId)) return 'telegram requires config.botToken and config.chatId';
+  if (body.type === 'discord' && !cfg.url) return 'discord requires config.url';
+  if (body.type === 'slack' && !cfg.url) return 'slack requires config.url';
+  if (body.type === 'generic' && !cfg.url) return 'generic requires config.url';
+  return null;
+}
+
+app.get('/api/webhooks', authMiddleware, requireRole('admin'), (req, res) => {
+  res.json({ webhooks: store.getWebhooks(), types: WEBHOOK_TYPES });
+});
+
+app.post('/api/webhooks', authMiddleware, requireRole('admin'), (req, res) => {
+  const err = validateWebhookPayload(req.body);
+  if (err) return res.status(400).json({ error: err });
+  const hook = store.addWebhook(req.body);
+  store.addEvent('webhook_created', `Webhook "${hook.name}" (${hook.type}) created by ${req.user.username}`);
+  res.status(201).json(hook);
+});
+
+app.put('/api/webhooks/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const hook = store.getWebhook(req.params.id);
+  if (!hook) return res.status(404).json({ error: 'not found' });
+  const updated = store.updateWebhook(req.params.id, req.body || {});
+  store.addEvent('webhook_updated', `Webhook "${updated.name}" updated by ${req.user.username}`);
+  res.json(updated);
+});
+
+app.delete('/api/webhooks/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const hook = store.getWebhook(req.params.id);
+  if (!hook) return res.status(404).json({ error: 'not found' });
+  store.deleteWebhook(req.params.id);
+  store.addEvent('webhook_deleted', `Webhook "${hook.name}" deleted by ${req.user.username}`);
+  res.json({ success: true });
+});
+
+app.post('/api/webhooks/:id/test', authMiddleware, requireRole('admin'), async (req, res) => {
+  const hook = store.getWebhook(req.params.id);
+  if (!hook) return res.status(404).json({ error: 'not found' });
+  const sample = notifier.buildTestAlert();
+  const result = await notifier.sendOne(hook, sample);
+  store.setWebhookLastDelivery(hook.id, result);
+  store.addEvent('webhook_tested', `Webhook "${hook.name}" tested by ${req.user.username}: ${result.ok ? 'ok' : result.error}`);
+  res.json(result);
+});
+
 // Get all agents
 app.get('/api/agents', authMiddleware, (req, res) => {
   res.json(store.getAllAgents());
@@ -497,6 +551,9 @@ agentNsp.on('connection', (socket) => {
       for (const alert of newAlerts) {
         store.addEvent('alert_triggered', alert.message, agentId);
         dashNsp.emit('alert:new', alert);
+        // Fan out to user-configured webhooks (Telegram / Discord / Slack / generic).
+        // Errors are logged + recorded on the channel; never throws.
+        notifier.dispatchAlert(store, alert);
       }
     }
   });

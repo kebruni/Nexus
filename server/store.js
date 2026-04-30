@@ -40,6 +40,9 @@ class Store {
     /** @type {Array<object>} Saved scripts */
     this.scripts = [];
 
+    /** @type {Array<object>} Webhook delivery channels for alerts */
+    this.webhooks = [];
+
     this.HISTORY_LIMIT = 200;
 
     this._loadFromDisk();
@@ -58,6 +61,7 @@ class Store {
     if (Array.isArray(data.alertRules)) this.alertRules = data.alertRules;
     if (Array.isArray(data.alerts)) this.alerts = data.alerts;
     if (Array.isArray(data.scripts)) this.scripts = data.scripts;
+    if (Array.isArray(data.webhooks)) this.webhooks = data.webhooks;
 
     if (data.chatMessages && typeof data.chatMessages === 'object') {
       for (const [agentId, msgs] of Object.entries(data.chatMessages)) {
@@ -84,6 +88,7 @@ class Store {
       alertRules: this.alertRules,
       alerts: this.alerts,
       scripts: this.scripts,
+      webhooks: this.webhooks,
       chatMessages: Object.fromEntries(this.chatMessages),
       groups: Object.fromEntries(this.groups),
     };
@@ -446,6 +451,56 @@ class Store {
 
   getScripts() {
     return this.scripts;
+  }
+
+  // ── Webhooks ────────────────────────────────────────────
+
+  addWebhook(data) {
+    const hook = {
+      id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      name: data.name,
+      type: data.type, // 'telegram' | 'discord' | 'slack' | 'generic'
+      enabled: data.enabled !== false,
+      config: data.config || {},
+      filters: data.filters || {},
+      createdAt: new Date().toISOString(),
+      lastDelivery: null,
+    };
+    this.webhooks.push(hook);
+    this._persist();
+    return hook;
+  }
+
+  updateWebhook(id, updates) {
+    const hook = this.webhooks.find((h) => h.id === id);
+    if (!hook) return null;
+    if (typeof updates.name === 'string') hook.name = updates.name;
+    if (typeof updates.enabled === 'boolean') hook.enabled = updates.enabled;
+    if (updates.config && typeof updates.config === 'object') hook.config = { ...hook.config, ...updates.config };
+    if (updates.filters && typeof updates.filters === 'object') hook.filters = { ...hook.filters, ...updates.filters };
+    this._persist();
+    return hook;
+  }
+
+  setWebhookLastDelivery(id, info) {
+    const hook = this.webhooks.find((h) => h.id === id);
+    if (!hook) return;
+    hook.lastDelivery = { ...info, at: new Date().toISOString() };
+    this._persist();
+  }
+
+  deleteWebhook(id) {
+    const before = this.webhooks.length;
+    this.webhooks = this.webhooks.filter((h) => h.id !== id);
+    if (this.webhooks.length !== before) this._persist();
+  }
+
+  getWebhooks() {
+    return this.webhooks;
+  }
+
+  getWebhook(id) {
+    return this.webhooks.find((h) => h.id === id) || null;
   }
 }
 
