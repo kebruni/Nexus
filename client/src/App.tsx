@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { connectSocket, disconnectSocket } from './api/socket';
+import { setCurrentUser, removeToken, type Role } from './api/auth';
 
 const API_BASE = '/api';
 
@@ -20,6 +21,7 @@ const ChatPage = lazy(() => import('./components/ChatPage'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const ScriptsPage = lazy(() => import('./components/ScriptsPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage'));
+const UsersPage = lazy(() => import('./components/UsersPage'));
 
 function AppSplash() {
   return (
@@ -50,7 +52,7 @@ function App() {
       fetch(`${API_BASE}/auth/verify`, { headers: { Authorization: `Bearer ${saved}` } })
         .then(async (response) => {
           if (!response.ok) {
-            localStorage.removeItem('pc-hub-token');
+            removeToken();
             return;
           }
           const body = await response.json().catch(() => ({}));
@@ -58,13 +60,16 @@ function App() {
             // Token is valid but the account still owes a password change;
             // force the user back to the login flow (which renders the
             // change-password panel).
-            localStorage.removeItem('pc-hub-token');
+            removeToken();
             return;
+          }
+          if (body && body.user && body.user.username && body.user.role) {
+            setCurrentUser({ username: body.user.username, role: body.user.role as Role });
           }
           setToken(saved);
           connectSocket(saved);
         })
-        .catch(() => localStorage.removeItem('pc-hub-token'))
+        .catch(() => removeToken())
         .finally(() => setChecking(false));
       return;
     }
@@ -79,7 +84,7 @@ function App() {
 
   const handleLogout = () => {
     setToken(null);
-    localStorage.removeItem('pc-hub-token');
+    removeToken();
     disconnectSocket();
   };
 
@@ -109,6 +114,7 @@ function App() {
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="scripts" element={<ScriptsPage />} />
                 <Route path="groups" element={<GroupsPage />} />
+                <Route path="users" element={<UsersPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

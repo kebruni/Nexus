@@ -19,10 +19,12 @@ import {
   ChevronRight,
   FileCode,
   Users,
+  ShieldCheck,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getSocket } from '../api/socket';
 import type { Language } from '../i18n/translations';
 import type { TranslationKey } from '../i18n/translations';
@@ -42,6 +44,8 @@ export default function Layout({ onLogout }: LayoutProps) {
   const { lang, setLang, t } = useLanguage();
   const { setTheme, isDark } = useTheme();
   const { toast } = useToast();
+  const currentUser = useCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
 
   const handleLogout = () => {
     onLogout();
@@ -217,6 +221,16 @@ export default function Layout({ onLogout }: LayoutProps) {
               {t('nav.groups')}
             </NavLink>
           </div>
+
+          {isAdmin && (
+            <div className="mb-5">
+              <p className={`px-4 py-2 text-[10px] font-bold ${labelColor} uppercase tracking-widest`}>{t('nav.admin')}</p>
+              <NavLink to="/dashboard/users" className={linkClass} onClick={closeSidebar}>
+                <ShieldCheck className="w-4 h-4" />
+                {t('nav.users')}
+              </NavLink>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}
@@ -253,6 +267,22 @@ export default function Layout({ onLogout }: LayoutProps) {
 
         {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">
+          {/* Current user / role badge */}
+          {currentUser && (
+            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 h-9 rounded-xl border text-xs font-medium ${
+              currentUser.role === 'admin'
+                ? isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-700'
+                : currentUser.role === 'operator'
+                  ? isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'bg-gray-100 border-gray-200 text-gray-700'
+            }`} title={`${currentUser.username} — ${currentUser.role}`}>
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="font-semibold">{currentUser.username}</span>
+              <span className="opacity-60">·</span>
+              <span className="uppercase tracking-wider text-[10px]">{currentUser.role}</span>
+            </div>
+          )}
+
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}

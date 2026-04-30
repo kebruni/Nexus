@@ -3,6 +3,7 @@ import { Monitor, Lock, AlertCircle, Sun, Moon, Globe } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Language } from '../i18n/translations';
+import { setCurrentUser, type Role } from '../api/auth';
 
 const API_BASE = '/api';
 
@@ -47,6 +48,9 @@ export default function Login({ onLogin }: LoginProps) {
       }
 
       localStorage.setItem('pc-hub-token', data.token);
+      if (data.username && data.role) {
+        setCurrentUser({ username: data.username, role: data.role as Role });
+      }
       onLogin(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -91,6 +95,9 @@ export default function Login({ onLogin }: LoginProps) {
       const loginData = await loginRes.json();
       if (!loginRes.ok) throw new Error(loginData.error || 'Re-login failed');
       localStorage.setItem('pc-hub-token', loginData.token);
+      if (loginData.username && loginData.role) {
+        setCurrentUser({ username: loginData.username, role: loginData.role as Role });
+      }
       onLogin(loginData.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Password change failed');

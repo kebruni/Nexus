@@ -1,12 +1,19 @@
 /**
- * Authentication: JWT issuance, password hashing, env→persisted-secret resolution.
+ * Authentication & RBAC.
  *
- * Resolution order for each secret:
- *   1. Environment variable (explicit, never persisted by us)
- *   2. .data/secrets.json (auto-generated on first boot, persisted across restarts)
- *   3. Built-in default (only for username; passwords are randomised on first run)
+ * - JWT issuance and verification (HS256, 24h).
+ * - Multi-user store persisted in .data/secrets.json under `users`.
+ *   Each entry: { username, passwordHash, role, mustChangePassword,
+ *   createdAt }. Roles: 'viewer' | 'operator' | 'admin'.
+ * - First-boot migration: if no users exist yet, seed an `admin` user
+ *   from either ADMIN_PASSWORD env var, or the legacy
+ *   `secrets.adminPasswordHash` field, or the default 'admin123'
+ *   (with mustChangePassword=true).
  *
- * Loud warnings are printed when defaults are in use.
+ * Resolution order for shared secrets (JWT_SECRET / AGENT_SECRET):
+ *   env > .data/secrets.json > generated-and-persisted.
+ *
+ * Loud warnings are printed when defaults are still in use.
  */
 
 const crypto = require('crypto');
@@ -16,6 +23,8 @@ const config = require('./config');
 const persistence = require('./persistence');
 
 const DEFAULT_ADMIN_PASSWORD = 'admin123';
+const ROLES = ['viewer', 'operator', 'admin'];
+const ROLE_RANK = { viewer: 0, operator: 1, admin: 2 };
 
 let secrets = persistence.loadSecrets() || {};
 
@@ -43,33 +52,162 @@ const AGENT_SECRET = agentSecretInfo.value;
 config.JWT_SECRET = JWT_SECRET;
 config.AGENT_SECRET = AGENT_SECRET;
 
-// ── Admin credentials ─────────────────────────────────────
-let adminPasswordHash;
-let mustChangePassword = false;
+// ── User store ────────────────────────────────────────────
+// secrets.users: { [username]: { passwordHash, role, mustChangePassword, createdAt } }
 
-function setAdminPasswordHash(hash, requireChange = false) {
-  adminPasswordHash = hash;
-  mustChangePassword = requireChange;
-  secrets.adminPasswordHash = hash;
-  secrets.mustChangePassword = requireChange;
+function persistUsers() {
   persistence.saveSecrets(secrets);
 }
 
-if (process.env.ADMIN_PASSWORD) {
-  // Explicit env override — always trust it.
-  adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
-  mustChangePassword = false;
-  // Don't persist env-supplied passwords; they remain authoritative each boot.
-} else if (secrets.adminPasswordHash) {
-  adminPasswordHash = secrets.adminPasswordHash;
-  mustChangePassword = !!secrets.mustChangePassword;
-} else {
-  // First boot: hash the default and require a change on first login.
-  adminPasswordHash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, 10);
-  mustChangePassword = true;
-  secrets.adminPasswordHash = adminPasswordHash;
-  secrets.mustChangePassword = true;
-  persistence.saveSecrets(secrets);
+function loadOrSeedUsers() {
+  if (secrets.users && typeof secrets.users === 'object' && Object.keys(secrets.users).length > 0) {
+    return; // already initialised
+  }
+
+  const username = process.env.ADMIN_USERNAME || config.ADMIN_USERNAME || 'admin';
+  let passwordHash;
+  let mustChange;
+
+  if (process.env.ADMIN_PASSWORD) {
+    passwordHash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
+    mustChange = false;
+  } else if (secrets.adminPasswordHash) {
+    // Legacy single-admin layout — migrate to the users map.
+    passwordHash = secrets.adminPasswordHash;
+    mustChange = !!secrets.mustChangePassword;
+  } else {
+    passwordHash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, 10);
+    mustChange = true;
+  }
+
+  secrets.users = {
+    [username]: {
+      passwordHash,
+      role: 'admin',
+      mustChangePassword: mustChange,
+      createdAt: new Date().toISOString(),
+    },
+  };
+
+  // Drop the legacy fields so we don't keep two sources of truth.
+  delete secrets.adminPasswordHash;
+  delete secrets.mustChangePassword;
+
+  persistUsers();
+}
+
+loadOrSeedUsers();
+
+function getUser(username) {
+  if (!username) return null;
+  return (secrets.users && secrets.users[username]) || null;
+}
+
+function listUsers() {
+  return Object.entries(secrets.users || {}).map(([username, u]) => ({
+    username,
+    role: u.role,
+    mustChangePassword: !!u.mustChangePassword,
+    createdAt: u.createdAt || null,
+  }));
+}
+
+function createUser({ username, password, role }) {
+  if (!username || typeof username !== 'string' || !/^[a-zA-Z0-9._-]{2,32}$/.test(username)) {
+    return { success: false, error: 'Invalid username (2-32 chars, alphanumerics / . _ -)' };
+  }
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    return { success: false, error: 'Password must be at least 8 characters' };
+  }
+  if (!ROLES.includes(role)) {
+    return { success: false, error: `Role must be one of ${ROLES.join(', ')}` };
+  }
+  if (getUser(username)) {
+    return { success: false, error: 'User already exists' };
+  }
+  secrets.users[username] = {
+    passwordHash: bcrypt.hashSync(password, 10),
+    role,
+    mustChangePassword: false,
+    createdAt: new Date().toISOString(),
+  };
+  persistUsers();
+  return {
+    success: true,
+    user: { username, role, mustChangePassword: false, createdAt: secrets.users[username].createdAt },
+  };
+}
+
+function deleteUser(username) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (user.role === 'admin') {
+    const otherAdmins = Object.entries(secrets.users || {})
+      .filter(([u, info]) => u !== username && info.role === 'admin');
+    if (otherAdmins.length === 0) {
+      return { success: false, error: 'Cannot delete the last admin user' };
+    }
+  }
+  delete secrets.users[username];
+  persistUsers();
+  return { success: true };
+}
+
+function updateUserRole(username, newRole) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (!ROLES.includes(newRole)) {
+    return { success: false, error: `Role must be one of ${ROLES.join(', ')}` };
+  }
+  if (user.role === 'admin' && newRole !== 'admin') {
+    const otherAdmins = Object.entries(secrets.users || {})
+      .filter(([u, info]) => u !== username && info.role === 'admin');
+    if (otherAdmins.length === 0) {
+      return { success: false, error: 'Cannot demote the last admin user' };
+    }
+  }
+  user.role = newRole;
+  persistUsers();
+  return { success: true, user: { username, role: newRole } };
+}
+
+function resetUserPassword(username, newPassword) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (!newPassword || newPassword.length < 8) {
+    return { success: false, error: 'Password must be at least 8 characters' };
+  }
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  user.mustChangePassword = true; // force re-change on next login
+  persistUsers();
+  return { success: true };
+}
+
+function changeOwnPassword(username, currentPassword, newPassword) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (!currentPassword || !newPassword) {
+    return { success: false, error: 'Both currentPassword and newPassword are required' };
+  }
+  if (!bcrypt.compareSync(currentPassword, user.passwordHash)) {
+    return { success: false, error: 'Current password is incorrect' };
+  }
+  if (newPassword.length < 8) {
+    return { success: false, error: 'New password must be at least 8 characters' };
+  }
+  if (newPassword === DEFAULT_ADMIN_PASSWORD) {
+    return { success: false, error: 'New password cannot be the default password' };
+  }
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  user.mustChangePassword = false;
+  persistUsers();
+  return { success: true };
+}
+
+// Back-compat shim used by /api/auth/change-password — operates on the
+// caller's own account.
+function changeAdminPassword(currentPassword, newPassword, username) {
+  return changeOwnPassword(username || 'admin', currentPassword, newPassword);
 }
 
 // ── Boot-time security report ─────────────────────────────
@@ -89,12 +227,14 @@ function logSecurityWarnings() {
   } else {
     lines.push('  [AGENT_SECRET]  loaded from env');
   }
-  if (mustChangePassword) {
-    lines.push('  [ADMIN_PASSWORD] DEFAULT in use (admin/admin123) — password change will be required on first login');
+  const users = Object.values(secrets.users || {});
+  const anyMustChange = users.some((u) => u.mustChangePassword);
+  if (anyMustChange) {
+    lines.push('  [USERS] Default admin password in use — password change will be required on first login');
   } else if (process.env.ADMIN_PASSWORD) {
-    lines.push('  [ADMIN_PASSWORD] loaded from env');
+    lines.push('  [USERS] admin loaded from env');
   } else {
-    lines.push('  [ADMIN_PASSWORD] loaded from .data/secrets.json');
+    lines.push(`  [USERS] ${users.length} user(s) loaded from .data/secrets.json`);
   }
   console.log('\n[Security]');
   for (const line of lines) console.log(line);
@@ -103,32 +243,24 @@ function logSecurityWarnings() {
 
 // ── Auth API ──────────────────────────────────────────────
 function authenticate(username, password) {
-  if (username !== config.ADMIN_USERNAME) return null;
-  if (!bcrypt.compareSync(password, adminPasswordHash)) return null;
+  const user = getUser(username);
+  if (!user) return null;
+  if (!bcrypt.compareSync(password, user.passwordHash)) return null;
   const token = jwt.sign(
-    { username, role: 'admin', mustChangePassword },
+    {
+      username,
+      role: user.role,
+      mustChangePassword: !!user.mustChangePassword,
+    },
     JWT_SECRET,
     { expiresIn: '24h' }
   );
-  return { token, username, role: 'admin', mustChangePassword };
-}
-
-function changeAdminPassword(currentPassword, newPassword) {
-  if (!currentPassword || !newPassword) {
-    return { success: false, error: 'Both currentPassword and newPassword are required' };
-  }
-  if (!bcrypt.compareSync(currentPassword, adminPasswordHash)) {
-    return { success: false, error: 'Current password is incorrect' };
-  }
-  if (newPassword.length < 8) {
-    return { success: false, error: 'New password must be at least 8 characters' };
-  }
-  if (newPassword === DEFAULT_ADMIN_PASSWORD) {
-    return { success: false, error: 'New password cannot be the default password' };
-  }
-  const hash = bcrypt.hashSync(newPassword, 10);
-  setAdminPasswordHash(hash, false);
-  return { success: true };
+  return {
+    token,
+    username,
+    role: user.role,
+    mustChangePassword: !!user.mustChangePassword,
+  };
 }
 
 function verifyToken(token) {
@@ -168,6 +300,32 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+/**
+ * Express middleware factory: requires the caller's role to be at
+ * least `minRole` (per ROLE_RANK). Use after `authMiddleware`.
+ *
+ *   app.post('/api/destructive', authMiddleware, requireRole('operator'), handler)
+ */
+function requireRole(minRole) {
+  if (!ROLES.includes(minRole)) {
+    throw new Error(`requireRole: unknown role ${minRole}`);
+  }
+  return (req, res, next) => {
+    const role = req.user && req.user.role;
+    if (!role || ROLE_RANK[role] === undefined) {
+      return res.status(403).json({ error: 'Forbidden: missing role' });
+    }
+    if (ROLE_RANK[role] < ROLE_RANK[minRole]) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        required: minRole,
+        actual: role,
+      });
+    }
+    next();
+  };
+}
+
 function socketAuthMiddleware(socket, next) {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Authentication required'));
@@ -187,14 +345,23 @@ function agentAuthMiddleware(socket, next) {
 }
 
 module.exports = {
+  ROLES,
+  ROLE_RANK,
   authenticate,
   changeAdminPassword,
+  changeOwnPassword,
+  resetUserPassword,
+  createUser,
+  deleteUser,
+  updateUserRole,
+  listUsers,
+  getUser,
   verifyToken,
   authMiddleware,
+  requireRole,
   socketAuthMiddleware,
   agentAuthMiddleware,
   logSecurityWarnings,
-  isMustChangePassword: () => mustChangePassword,
   // For tests / introspection only — never expose over the network.
   _internals: { JWT_SECRET, AGENT_SECRET },
 };

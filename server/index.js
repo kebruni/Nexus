@@ -6,7 +6,21 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config');
 const store = require('./store');
-const { authenticate, changeAdminPassword, authMiddleware, socketAuthMiddleware, agentAuthMiddleware, logSecurityWarnings, isMustChangePassword } = require('./auth');
+const {
+  authenticate,
+  changeAdminPassword,
+  authMiddleware,
+  requireRole,
+  socketAuthMiddleware,
+  agentAuthMiddleware,
+  logSecurityWarnings,
+  listUsers,
+  createUser,
+  deleteUser,
+  updateUserRole,
+  resetUserPassword,
+  ROLES,
+} = require('./auth');
 
 /* ── Local file-system helpers (server machine) ────────── */
 const os = require('os');
@@ -203,9 +217,54 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
 // Change admin password (used to clear the mustChangePassword flag set on first boot).
 app.post('/api/auth/change-password', authMiddleware, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
-  const result = changeAdminPassword(currentPassword, newPassword);
+  const result = changeAdminPassword(currentPassword, newPassword, req.user.username);
   if (!result.success) return res.status(400).json({ error: result.error });
   store.addEvent('admin_password_changed', `Admin ${req.user.username} changed their password`);
+  res.json({ success: true });
+});
+
+// ── User management (admin only) ──────────────────────────
+app.get('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
+  res.json({ users: listUsers(), roles: ROLES });
+});
+
+app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
+  const { username, password, role } = req.body || {};
+  const result = createUser({ username, password, role });
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('user_created', `User "${username}" (${role}) created by ${req.user.username}`);
+  res.status(201).json(result.user);
+});
+
+app.delete('/api/users/:username', authMiddleware, requireRole('admin'), (req, res) => {
+  const target = req.params.username;
+  if (target === req.user.username) {
+    return res.status(400).json({ error: 'Cannot delete yourself' });
+  }
+  const result = deleteUser(target);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('user_deleted', `User "${target}" deleted by ${req.user.username}`);
+  res.json({ success: true });
+});
+
+app.put('/api/users/:username/role', authMiddleware, requireRole('admin'), (req, res) => {
+  const target = req.params.username;
+  const { role } = req.body || {};
+  if (target === req.user.username && role !== 'admin') {
+    return res.status(400).json({ error: 'Cannot demote yourself' });
+  }
+  const result = updateUserRole(target, role);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('user_role_changed', `User "${target}" role -> ${role} by ${req.user.username}`);
+  res.json(result.user);
+});
+
+app.put('/api/users/:username/password', authMiddleware, requireRole('admin'), (req, res) => {
+  const target = req.params.username;
+  const { newPassword } = req.body || {};
+  const result = resetUserPassword(target, newPassword);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('user_password_reset', `Password reset for "${target}" by ${req.user.username}`);
   res.json({ success: true });
 });
 
@@ -249,7 +308,7 @@ app.get('/api/alerts/unread', authMiddleware, (req, res) => {
   res.json(store.getUnacknowledgedAlerts());
 });
 
-app.post('/api/alerts/:id/acknowledge', authMiddleware, (req, res) => {
+app.post('/api/alerts/:id/acknowledge', authMiddleware, requireRole('operator'), (req, res) => {
   const alert = store.acknowledgeAlert(req.params.id);
   if (!alert) return res.status(404).json({ error: 'Alert not found' });
   res.json(alert);
@@ -260,19 +319,19 @@ app.get('/api/alert-rules', authMiddleware, (req, res) => {
   res.json(store.getAlertRules());
 });
 
-app.post('/api/alert-rules', authMiddleware, (req, res) => {
+app.post('/api/alert-rules', authMiddleware, requireRole('operator'), (req, res) => {
   const rule = store.addAlertRule(req.body);
   store.addEvent('alert_rule_created', `Alert rule "${rule.name}" created`);
   res.json(rule);
 });
 
-app.put('/api/alert-rules/:id', authMiddleware, (req, res) => {
+app.put('/api/alert-rules/:id', authMiddleware, requireRole('operator'), (req, res) => {
   const rule = store.updateAlertRule(req.params.id, req.body);
   if (!rule) return res.status(404).json({ error: 'Rule not found' });
   res.json(rule);
 });
 
-app.delete('/api/alert-rules/:id', authMiddleware, (req, res) => {
+app.delete('/api/alert-rules/:id', authMiddleware, requireRole('operator'), (req, res) => {
   store.deleteAlertRule(req.params.id);
   res.json({ success: true });
 });
@@ -282,19 +341,19 @@ app.get('/api/groups', authMiddleware, (req, res) => {
   res.json(store.getGroups());
 });
 
-app.post('/api/groups', authMiddleware, (req, res) => {
+app.post('/api/groups', authMiddleware, requireRole('operator'), (req, res) => {
   const { name, color } = req.body;
   const group = store.addGroup(name, color);
   store.addEvent('group_created', `Group "${name}" created`);
   res.json(group);
 });
 
-app.delete('/api/groups/:name', authMiddleware, (req, res) => {
+app.delete('/api/groups/:name', authMiddleware, requireRole('operator'), (req, res) => {
   store.deleteGroup(req.params.name);
   res.json({ success: true });
 });
 
-app.put('/api/agents/:id/group', authMiddleware, (req, res) => {
+app.put('/api/agents/:id/group', authMiddleware, requireRole('operator'), (req, res) => {
   const agent = store.setAgentGroup(req.params.id, req.body.group);
   if (!agent) return res.status(404).json({ error: 'Agent not found' });
   res.json(agent);
@@ -308,7 +367,7 @@ app.put('/api/agents/:id/group', authMiddleware, (req, res) => {
 // missed without aborting the whole bulk action.
 const BULK_ACTIONS = new Set(['execute', 'reboot', 'shutdown', 'lockscreen', 'alarm']);
 
-app.post('/api/bulk/command', authMiddleware, (req, res) => {
+app.post('/api/bulk/command', authMiddleware, requireRole('operator'), (req, res) => {
   const { action, groupName, agentIds, command } = req.body || {};
   if (!BULK_ACTIONS.has(action)) {
     return res.status(400).json({ error: 'Invalid action', allowed: Array.from(BULK_ACTIONS) });
@@ -384,7 +443,7 @@ app.get('/api/scripts', authMiddleware, (req, res) => {
   res.json(store.getScripts());
 });
 
-app.post('/api/scripts', authMiddleware, (req, res) => {
+app.post('/api/scripts', authMiddleware, requireRole('operator'), (req, res) => {
   const { name, code } = req.body;
   if (!name || !code) return res.status(400).json({ error: 'Name and code are required' });
   const script = store.addScript({ name, code });
@@ -392,7 +451,7 @@ app.post('/api/scripts', authMiddleware, (req, res) => {
   res.json(script);
 });
 
-app.delete('/api/scripts/:id', authMiddleware, (req, res) => {
+app.delete('/api/scripts/:id', authMiddleware, requireRole('operator'), (req, res) => {
   store.deleteScript(req.params.id);
   res.json({ success: true });
 });
@@ -526,8 +585,24 @@ agentNsp.on('connection', (socket) => {
 });
 
 // ── Dashboard Socket Handlers ─────────────────────────────
+// Helper: gate destructive socket events behind a minimum role.
+const SOCKET_ROLE_RANK = { viewer: 0, operator: 1, admin: 2 };
+function socketHasRole(socket, minRole) {
+  const role = socket.user && socket.user.role;
+  if (!role) return false;
+  return (SOCKET_ROLE_RANK[role] || 0) >= (SOCKET_ROLE_RANK[minRole] || 0);
+}
+function denyForbidden(socket, action) {
+  socket.emit('command:result', {
+    error: 'Forbidden',
+    action,
+    required: 'operator',
+    actual: socket.user && socket.user.role,
+  });
+}
+
 dashNsp.on('connection', (socket) => {
-  console.log(`[Dashboard Connected] ${socket.user.username}`);
+  console.log(`[Dashboard Connected] ${socket.user.username} (${socket.user.role})`);
 
   // Send current agents list
   socket.emit('agents:list', store.getAllAgents());
@@ -539,6 +614,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Request command execution on agent
   socket.on('command:execute', ({ agentId, command }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:execute');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('command_sent', `Admin sent command to ${agentId}: ${command}`, agentId);
@@ -550,6 +626,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Reboot
   socket.on('command:reboot', ({ agentId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:reboot');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('command_reboot', `Admin sent reboot to ${agentId}`, agentId);
@@ -559,6 +636,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Shutdown
   socket.on('command:shutdown', ({ agentId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:shutdown');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('command_shutdown', `Admin sent shutdown to ${agentId}`, agentId);
@@ -568,6 +646,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Lock Screen
   socket.on('command:lockscreen', ({ agentId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:lockscreen');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('command_lock', `Admin locked screen on ${agentId}`, agentId);
@@ -577,6 +656,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Sound Alarm
   socket.on('command:alarm', ({ agentId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:alarm');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('command_alarm', `Admin triggered alarm on ${agentId}`, agentId);
@@ -595,6 +675,7 @@ dashNsp.on('connection', (socket) => {
   });
 
   socket.on('file:download', ({ agentId, filePath }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:download');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('file_download', `Admin downloaded file: ${filePath}`, agentId);
@@ -603,6 +684,7 @@ dashNsp.on('connection', (socket) => {
   });
 
   socket.on('file:delete', ({ agentId, filePath }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:delete');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('file_delete', `Admin deleted file: ${filePath}`, agentId);
@@ -698,6 +780,7 @@ dashNsp.on('connection', (socket) => {
   });
 
   socket.on('screen:mouse', ({ agentId, x, y, type, button, wheel }) => {
+    if (!socketHasRole(socket, 'operator')) return; // viewer cannot drive remote input
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       const logMsg = type === 'wheel'
@@ -711,6 +794,7 @@ dashNsp.on('connection', (socket) => {
   });
 
   socket.on('screen:keyboard', ({ agentId, key, type }) => {
+    if (!socketHasRole(socket, 'operator')) return;
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       console.log(`[INPUT] Forward keyboard to ${agentId}: ${type || 'press'} key=${key}`);
@@ -766,6 +850,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ File upload to agent (push file from dashboard)
   socket.on('file:upload', ({ agentId, fileName, fileData, remotePath }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:upload');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       store.addEvent('file_upload', `Admin uploaded file: ${fileName} to ${remotePath}`, agentId);
@@ -775,6 +860,7 @@ dashNsp.on('connection', (socket) => {
 
   // ─ File transfer between agents (SFTP-like)
   socket.on('file:transfer', ({ sourceAgentId, destAgentId, filePath, destPath, transferId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:transfer');
     const srcSocket = findAgentSocket(sourceAgentId);
     const dstSocket = findAgentSocket(destAgentId);
 
