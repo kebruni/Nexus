@@ -403,6 +403,15 @@ class Store {
     return agent;
   }
 
+  /**
+   * Returns all agents (online or offline) that belong to `groupName`.
+   * Used by bulk-action endpoints to fan a single command out to a group.
+   */
+  getAgentsByGroup(groupName) {
+    if (!groupName) return [];
+    return this.getAllAgents().filter((a) => a.group === groupName);
+  }
+
   // ── Latency ─────────────────────────────────────────────
 
   updateLatency(agentId, latencyMs) {

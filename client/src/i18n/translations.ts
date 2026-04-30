@@ -234,6 +234,17 @@ export const translations = {
   'groups.devices': { en: 'devices', ru: 'устройств', kz: 'құрылғы' },
   'groups.addDevice': { en: 'Add device', ru: 'Добавить устройство', kz: 'Құрылғы қосу' },
   'groups.all': { en: 'All Devices', ru: 'Все устройства', kz: 'Барлық құрылғылар' },
+  'groups.bulkActions': { en: 'Bulk actions', ru: 'Массовые действия', kz: 'Жаппай әрекеттер' },
+  'groups.bulkRun': { en: 'Run command', ru: 'Выполнить команду', kz: 'Команда орындау' },
+  'groups.bulkReboot': { en: 'Reboot all', ru: 'Перезагрузить всех', kz: 'Барлығын қайта жүктеу' },
+  'groups.bulkShutdown': { en: 'Shutdown all', ru: 'Выключить всех', kz: 'Барлығын өшіру' },
+  'groups.bulkLock': { en: 'Lock screens', ru: 'Заблокировать экраны', kz: 'Экрандарды құлыптау' },
+  'groups.bulkConfirm': { en: 'Run "{action}" on {count} device(s) in "{group}"?', ru: 'Выполнить «{action}» на {count} устр. в «{group}»?', kz: '«{group}» ішіндегі {count} құрылғыда «{action}» орындау керек пе?' },
+  'groups.bulkResult': { en: 'Sent: {sent} / {total}{skipped}', ru: 'Отправлено: {sent} / {total}{skipped}', kz: 'Жіберілді: {sent} / {total}{skipped}' },
+  'groups.bulkResultSkipped': { en: ' ({skipped} offline)', ru: ' ({skipped} оффлайн)', kz: ' ({skipped} офлайн)' },
+  'groups.bulkCommandPrompt': { en: 'Command to run on every online device in this group:', ru: 'Команда для всех онлайн устройств в группе:', kz: 'Топтың әр онлайн құрылғысында іске қосылатын команда:' },
+  'groups.bulkEmpty': { en: 'No devices in this group', ru: 'В группе нет устройств', kz: 'Топта құрылғы жоқ' },
+  'groups.bulkNoOnline': { en: 'No online devices in this group', ru: 'Нет онлайн устройств в группе', kz: 'Топта онлайн құрылғы жоқ' },
 
   // ── Lock / Alarm ──
   'detail.lock': { en: 'Lock Screen', ru: 'Заблокировать', kz: 'Экранды құлыптау' },
