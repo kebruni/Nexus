@@ -11,6 +11,17 @@ agent/dist-gui-2/
 agent/dist-gui-3/
 agent/client/dist/
 
+# Local test artifacts (Devin)
+test-screens*/
+test-plan*.md
+test-report*.md
+
+# Persistence layer runtime data (server)
+.data/
+
+# Agent runtime config (writable userData area in dev)
+agent/.agent-id
+
 *.log
 *.local
 *.bak

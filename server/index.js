@@ -92,6 +92,61 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
+// ── Agent installer download ──────────────────────────────
+// The Windows installer is produced by `npm --prefix agent run build`
+// (electron-builder NSIS target) and lands in `agent/dist-gui/`. CI
+// (`.github/workflows/build-agent-installer.yml`) does the same on
+// `windows-latest` and uploads the artifact. We resolve the latest
+// `Nexus-Agent-Setup-*.exe` and stream it to the browser.
+function findInstallerArtifact() {
+  const distDir = path.join(__dirname, '..', 'agent', 'dist-gui');
+  try {
+    const entries = fs.readdirSync(distDir);
+    const candidates = entries
+      .filter((name) => /^Nexus-Agent-Setup-.*\.exe$/.test(name))
+      .map((name) => {
+        const full = path.join(distDir, name);
+        return { name, full, mtime: fs.statSync(full).mtime };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    return candidates[0] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+app.get('/api/agent/installer/info', (req, res) => {
+  const artifact = findInstallerArtifact();
+  if (!artifact) {
+    return res.status(404).json({
+      available: false,
+      hint: 'Run "npm --prefix agent run build" or download from CI artifacts',
+    });
+  }
+  const stats = fs.statSync(artifact.full);
+  const m = artifact.name.match(/Nexus-Agent-Setup-(.+)\.exe$/);
+  res.json({
+    available: true,
+    fileName: artifact.name,
+    version: m ? m[1] : null,
+    size: stats.size,
+    modified: stats.mtime.toISOString(),
+    downloadUrl: '/api/agent/installer/download',
+  });
+});
+
+app.get('/api/agent/installer/download', (req, res) => {
+  const artifact = findInstallerArtifact();
+  if (!artifact) {
+    return res.status(404).send('Installer not built. Run `npm --prefix agent run build` first.');
+  }
+  res.download(artifact.full, 'Nexus-Agent-Setup.exe');
+});
+
+// Legacy URL kept for backward compatibility with the dashboard tile that
+// previously linked to /AgentSetup.exe.
+app.get('/AgentSetup.exe', (req, res) => res.redirect(302, '/api/agent/installer/download'));
+
 // Rate limiter for login
 const loginAttempts = new Map();
 
