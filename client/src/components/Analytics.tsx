@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getSocket } from '../api/socket';
 import type { Agent, GpuInfo } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   Cpu,
   MemoryStick,
@@ -50,6 +51,7 @@ const tooltipStyle: React.CSSProperties = {
 export default function Analytics() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const { isDark } = useTheme();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -111,23 +113,23 @@ export default function Analytics() {
     <div className="h-full flex flex-col max-w-7xl mx-auto py-8 pr-8 space-y-6">
       {/* Header */}
       <div>
-        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>Аналитика</h2>
+        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>{t('analytics.title')}</h2>
         <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-gray-500'} mt-1`}>
-          {onlineAgents.length} онлайн • {offlineAgents.length} оффлайн • {agents.length} всего
+          {t('analytics.summary', { online: onlineAgents.length, offline: offlineAgents.length, total: agents.length })}
         </p>
       </div>
 
       {/* Aggregate stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <AggCard icon={<Server className="w-4 h-4" />} label="Устройства" color="#3b82f6"
-          main={`${onlineAgents.length}`} sub={`${agents.length} всего`} />
-        <AggCard icon={<Cpu className="w-4 h-4" />} label="Ср. CPU" color="#3b82f6"
-          main={`${totalCpu.toFixed(1)}%`} sub={`по ${onlineAgents.length} устр.`} pct={totalCpu} />
-        <AggCard icon={<MemoryStick className="w-4 h-4" />} label="RAM" color="#a855f7"
+        <AggCard icon={<Server className="w-4 h-4" />} label={t('analytics.devices')} color="#3b82f6"
+          main={`${onlineAgents.length}`} sub={t('analytics.totalSuffix', { n: agents.length })} />
+        <AggCard icon={<Cpu className="w-4 h-4" />} label={t('analytics.avgCpu')} color="#3b82f6"
+          main={`${totalCpu.toFixed(1)}%`} sub={t('analytics.acrossDevices', { n: onlineAgents.length })} pct={totalCpu} />
+        <AggCard icon={<MemoryStick className="w-4 h-4" />} label={t('analytics.ram')} color="#a855f7"
           main={`${totalRamPct.toFixed(1)}%`} sub={`${formatBytes(totalRamUsed)} / ${formatBytes(totalRam)}`} pct={totalRamPct} />
-        <AggCard icon={<HardDrive className="w-4 h-4" />} label="Диск" color="#f97316"
+        <AggCard icon={<HardDrive className="w-4 h-4" />} label={t('analytics.disk')} color="#f97316"
           main={`${totalDiskPct.toFixed(1)}%`} sub={`${formatBytes(totalDiskUsed)} / ${formatBytes(totalDisk)}`} pct={totalDiskPct} />
-        <AggCard icon={<Wifi className="w-4 h-4" />} label="Сеть" color="#10b981"
+        <AggCard icon={<Wifi className="w-4 h-4" />} label={t('analytics.network')} color="#10b981"
           main={formatBps(totalNetDown * 1024)} sub={`↑ ${formatBps(totalNetUp * 1024)}`} />
       </div>
 
@@ -136,7 +138,7 @@ export default function Analytics() {
         <div className="section-card">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-blue-400"><Monitor className="w-4 h-4" /></span>
-            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Нагрузка по устройствам</h3>
+            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('analytics.loadByDevice')}</h3>
             <div className="ml-auto flex items-center gap-3 text-[10px]">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> CPU</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-purple-500 inline-block" /> RAM</span>
@@ -160,18 +162,18 @@ export default function Analytics() {
       <div className="section-card">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-blue-400"><Monitor className="w-4 h-4" /></span>
-            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Все устройства</h3>
+            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('analytics.allDevices')}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-zinc-600 border-zinc-800/80' : 'text-gray-400 border-gray-200'} border-b`}>
-                <th className="text-left py-2 px-3 font-semibold">Устройство</th>
-                <th className="text-left py-2 px-3 font-semibold">Статус</th>
+                <th className="text-left py-2 px-3 font-semibold">{t('analytics.colDevice')}</th>
+                <th className="text-left py-2 px-3 font-semibold">{t('analytics.colStatus')}</th>
                 <th className="text-right py-2 px-3 font-semibold">CPU</th>
                 <th className="text-right py-2 px-3 font-semibold">RAM</th>
-                <th className="text-right py-2 px-3 font-semibold">Диск</th>
-                <th className="text-right py-2 px-3 font-semibold">Сеть ↓</th>
+                <th className="text-right py-2 px-3 font-semibold">{t('analytics.disk')}</th>
+                <th className="text-right py-2 px-3 font-semibold">{t('analytics.colNet')}</th>
                 <th className="text-right py-2 px-3 font-semibold">GPU</th>
               </tr>
             </thead>
@@ -230,7 +232,7 @@ export default function Analytics() {
         <div className="section-card">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-pink-400"><Gauge className="w-4 h-4" /></span>
-            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Все GPU</h3>
+            <h3 className={`text-[13px] font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('analytics.allGpus')}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {allGpus.map((item, i) => (

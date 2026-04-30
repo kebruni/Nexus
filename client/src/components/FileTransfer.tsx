@@ -27,12 +27,13 @@ import {
   ArrowDownCircle,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API_BASE = '/api';
 
-/* в”Ђв”Ђ helpers в”Ђв”Ђ */
+/* -- helpers -- */
 function formatBytes(bytes: number): string {
-  if (bytes <= 0) return 'вЂ”';
+  if (bytes <= 0) return '—';
   const k = 1024;
   const s = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -71,7 +72,7 @@ function getFileIcon(name: string, isDir: boolean, hasError: boolean, size = 'w-
   return <File className={`${size} text-zinc-500/70`} />;
 }
 
-/* в”Ђв”Ђ types в”Ђв”Ђ */
+/* -- types -- */
 interface PanelState {
   path: string;
   files: FileItem[];
@@ -104,9 +105,10 @@ const defaultPanel: PanelState = {
   showSearch: false,
 };
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ========================================================== */
 export default function FileTransfer() {
   const { isDark } = useTheme();
+  const { t } = useLanguage();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [local, setLocal] = useState<PanelState>({ ...defaultPanel });
   const [remote, setRemote] = useState<PanelState & { agentId: string | null }>({ ...defaultPanel, agentId: null });
@@ -115,7 +117,7 @@ export default function FileTransfer() {
   const [localActionsOpen, setLocalActionsOpen] = useState(false);
   const [remoteActionsOpen, setRemoteActionsOpen] = useState(false);
 
-  /* в”Ђв”Ђ load local files via File System Access API в”Ђв”Ђ */
+  /* -- load local files via File System Access API -- */
   const loadFilesFromHandle = async (handle: FileSystemDirectoryHandle, stack: FileSystemDirectoryHandle[]) => {
     setLocal(p => ({ ...p, loading: true, error: '' }));
     try {
@@ -127,7 +129,7 @@ export default function FileTransfer() {
         // @ts-expect-error File System Access API permission methods differ across browsers.
         const result = await handle.requestPermission({ mode: 'read' });
         if (result !== 'granted') {
-          throw new Error('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ');
+          throw new Error(t('fileTransfer.permissionDenied'));
         }
       }
 
@@ -194,7 +196,7 @@ export default function FileTransfer() {
   const handleSelectRoot = async () => {
     try {
       if (!('showDirectoryPicker' in window)) {
-        throw new Error('Р’Р°С€ Р±СЂР°СѓР·РµСЂ РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚ File System Access API. РСЃРїРѕР»СЊР·СѓР№С‚Рµ Chrome/Edge.');
+        throw new Error(t('fileTransfer.unsupportedBrowser'));
       }
       // @ts-expect-error showDirectoryPicker is available only in browsers that support the File System Access API.
       const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
@@ -238,7 +240,7 @@ export default function FileTransfer() {
     loadFilesFromHandle(currentHandle, local.handleStack);
   }, [local.handleStack]);
 
-  /* в”Ђв”Ђ agent list в”Ђв”Ђ */
+  /* -- agent list -- */
   useEffect(() => {
     const token = localStorage.getItem('pc-hub-token');
     if (token) {
@@ -258,7 +260,7 @@ export default function FileTransfer() {
     return () => { socket.off('agents:list'); socket.off('agent:metrics'); };
   }, []);
 
-  /* в”Ђв”Ђ remote (agent) file list listener в”Ђв”Ђ */
+  /* -- remote (agent) file list listener -- */
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -275,7 +277,7 @@ export default function FileTransfer() {
     return () => { socket.off('file:list:result', handler); };
   }, []);
 
-  /* в”Ђв”Ђ transfer status listener в”Ђв”Ђ */
+  /* -- transfer status listener -- */
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -310,7 +312,7 @@ export default function FileTransfer() {
     return () => { socket.off('file:transfer:status', handleStatus); };
   }, [local.handleStack, refreshLocalDirectory]);
 
-  /* в”Ђв”Ђ navigate remote (agent) в”Ђв”Ђ */
+  /* -- navigate remote (agent) -- */
   const navigateRemote = useCallback((dirPath: string, agentIdOverride?: string) => {
     setRemote(prev => {
       const aid = agentIdOverride || prev.agentId;
@@ -327,7 +329,7 @@ export default function FileTransfer() {
     navigateRemote('', agent.id);
   };
 
-  /* в”Ђв”Ђ transfer: local в†’ agent в”Ђв”Ђ */
+  /* -- transfer: local -> agent -- */
   const transferToAgent = () => {
     if (!remote.agentId || local.selected.size === 0) return;
     const socket = getSocket();
@@ -349,7 +351,7 @@ export default function FileTransfer() {
     setTransfers(prev => [...newJobs, ...prev]);
   };
 
-  /* в”Ђв”Ђ transfer: agent в†’ local в”Ђв”Ђ */
+  /* -- transfer: agent -> local -- */
   const transferFromAgent = () => {
     if (!remote.agentId || remote.selected.size === 0) return;
     const socket = getSocket();
@@ -460,9 +462,9 @@ export default function FileTransfer() {
 
             {/* Select root / drives */}
             <div className="ml-2 flex items-center gap-1">
-               <button onClick={handleChangeRoot} className={`hover:bg-gray-200 dark:hover:bg-[#333] px-2 py-1 rounded flex items-center gap-1.5 transition-colors font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`} title="Выбрать другой локальный путь">
+               <button onClick={handleChangeRoot} className={`hover:bg-gray-200 dark:hover:bg-[#333] px-2 py-1 rounded flex items-center gap-1.5 transition-colors font-semibold ${isDark ? 'text-gray-300' : 'text-gray-800'}`} title={t('fileTransfer.pickLocalDir')}>
                  <Folder className="w-4 h-4 text-sky-400" fill="currentColor" fillOpacity={0.2} />
-                 {local.handleStack && local.handleStack[0] ? local.handleStack[0].name : "Локальный диск"}
+                 {local.handleStack && local.handleStack[0] ? local.handleStack[0].name : t('fileTransfer.localDrive')}
                </button>
                {local.handleStack && local.handleStack.length > 1 && (
                   <>
@@ -496,7 +498,7 @@ export default function FileTransfer() {
           <div className="flex-1 overflow-y-auto select-none pb-20">
             {local.loading && (
               <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
-                <Loader2 className="w-6 h-6 animate-spin mb-2" /> Загрузка...
+                <Loader2 className="w-6 h-6 animate-spin mb-2" /> {t('fileTransfer.loading')}
               </div>
             )}
             {!local.loading && local.error && (
@@ -563,9 +565,9 @@ export default function FileTransfer() {
             {!local.loading && !local.handleStack?.length && !local.error && (
               <div className="flex flex-col items-center justify-center h-full text-center p-8 text-gray-400">
                 <HardDrive className="w-12 h-12 mb-4 opacity-50 text-sky-400" />
-                <p className="text-sm font-medium mb-4">Нажмите кнопку ниже, чтобы запросить доступ к локальным файлам в браузере.</p>
+                <p className="text-sm font-medium mb-4">{t('fileTransfer.requestAccessHint')}</p>
                 <button onClick={handleSelectRoot} className="px-6 py-2 bg-[#5bb0f9] hover:bg-sky-500 text-white rounded font-medium shadow-sm transition">
-                  Выбрать директорию (путь)
+                  {t('fileTransfer.pickDirectory')}
                 </button>
               </div>
             )}
@@ -589,13 +591,13 @@ export default function FileTransfer() {
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className={`flex items-center gap-1 text-[15px] ${isDark ? 'text-gray-200 hover:text-white' : 'hover:text-gray-600'}`}
                 >
-                  {onlineAgents.find(a => a.id === remote.agentId)?.hostname || 'Выберите устройство...'}
+                  {onlineAgents.find(a => a.id === remote.agentId)?.hostname || t('fileTransfer.pickAgent')}
                   <ChevronDown className="w-3.5 h-3.5 opacity-70" />
                 </button>
                 {dropdownOpen && (
                   <div className={`absolute top-full left-0 mt-1 w-64 rounded shadow-lg border ${isDark ? 'bg-[#252526] border-[#333]' : 'bg-white border-gray-200'}`}>
                     {onlineAgents.length === 0 ? (
-                      <div className="p-3 text-sm text-gray-500 text-center">Нет онлайн ПК</div>
+                      <div className="p-3 text-sm text-gray-500 text-center">{t('fileTransfer.noOnlineDevices')}</div>
                     ) : (
                       onlineAgents.map(a => (
                         <div 
@@ -676,7 +678,7 @@ export default function FileTransfer() {
                             // POSIX root '/' is already a complete path; only append separator for Windows drive letters like 'C:'.
                             navigateRemote(v.startsWith('/') ? v : v + '\\');
                           }}
-                          title="Выбрать диск устройства"
+                          title={t('fileTransfer.pickAgentDrive')}
                         >
                           {remote.drives.map(d => (
                              <option key={d} value={d} className="text-black">{d}</option>
@@ -740,7 +742,7 @@ export default function FileTransfer() {
             ) : remote.loading ? (
               <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
                 <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                Чтение ПК...
+                {t('fileTransfer.readingPc')}
               </div>
             ) : remote.error ? (
               <div className="p-6 text-sm text-red-500 text-center">{remote.error}</div>
@@ -812,13 +814,13 @@ export default function FileTransfer() {
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-[#1a1a1a] text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-6 z-50">
            {local.selected.size > 0 && (
              <div className="flex items-center gap-3">
-               <span className="text-sm font-medium">{local.selected.size} файлов выбрано</span>
+               <span className="text-sm font-medium">{t('fileTransfer.filesSelected', { n: local.selected.size })}</span>
                <button 
                  onClick={transferToAgent}
                  disabled={!remote.agentId || !remote.path}
                  className="flex items-center gap-1.5 bg-[#4caf50] hover:bg-[#43a047] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
                >
-                 Загрузить на ПК <ArrowRight className="w-4 h-4" />
+                 {t('fileTransfer.uploadToPc')} <ArrowRight className="w-4 h-4" />
                </button>
              </div>
            )}
@@ -834,9 +836,9 @@ export default function FileTransfer() {
                  disabled={!local.path || local.loading}
                  className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
                >
-                 <ArrowLeft className="w-4 h-4" /> Скачать в браузер
+                 <ArrowLeft className="w-4 h-4" /> {t('fileTransfer.downloadToBrowser')}
                </button>
-               <span className="text-sm font-medium">{remote.selected.size} файлов выбрано</span>
+               <span className="text-sm font-medium">{t('fileTransfer.filesSelected', { n: remote.selected.size })}</span>
              </div>
            )}
         </div>
@@ -846,7 +848,7 @@ export default function FileTransfer() {
       {transfers.length > 0 && (
         <div className="fixed bottom-0 right-8 w-80 max-h-[400px] overflow-auto bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#333] shadow-2xl rounded-t-xl z-50 flex flex-col">
           <div className="px-4 py-3 border-b dark:border-[#333] flex items-center justify-between sticky top-0 bg-white dark:bg-[#1e1e1e]">
-            <h4 className={`font-semibold text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Передачи ({transfers.filter(t => t.status !== 'done' && t.status !== 'error').length})</h4>
+            <h4 className={`font-semibold text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{t('fileTransfer.transfers', { n: transfers.filter(tr => tr.status !== 'done' && tr.status !== 'error').length })}</h4>
             <button className="text-gray-400 hover:text-gray-800 dark:hover:text-gray-200" onClick={() => setTransfers([])}><X className="w-4 h-4" /></button>
           </div>
           <div className="p-3 space-y-2">

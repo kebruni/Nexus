@@ -1,16 +1,23 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { translations, type Language, type TranslationKey } from '../i18n/translations';
 
+type TParams = Record<string, string | number>;
+
 interface LanguageContextType {
   lang: Language;
   setLang: (lang: Language) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey, params?: TParams) => string;
+}
+
+function interpolate(template: string, params?: TParams): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (_, k) => (k in params ? String(params[k]) : `{${k}}`));
 }
 
 const LanguageContext = createContext<LanguageContextType>({
   lang: 'en',
   setLang: () => {},
-  t: (key) => translations[key]?.en || key,
+  t: (key, params) => interpolate(translations[key]?.en || key, params),
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
@@ -23,8 +30,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('nexus-lang', l);
   };
 
-  const t = (key: TranslationKey): string => {
-    return translations[key]?.[lang] || translations[key]?.en || key;
+  const t = (key: TranslationKey, params?: TParams): string => {
+    const template = translations[key]?.[lang] || translations[key]?.en || key;
+    return interpolate(template, params);
   };
 
   return (
