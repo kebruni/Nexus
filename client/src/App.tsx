@@ -22,6 +22,7 @@ const NotFound = lazy(() => import('./components/NotFound'));
 const ScriptsPage = lazy(() => import('./components/ScriptsPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
+const WebhooksPage = lazy(() => import('./components/WebhooksPage'));
 
 function AppSplash() {
   return (
@@ -115,6 +116,7 @@ function App() {
                 <Route path="scripts" element={<ScriptsPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="webhooks" element={<WebhooksPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
