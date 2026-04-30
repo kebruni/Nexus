@@ -705,6 +705,10 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Transfer: local → agent (push file from server disk to agent)
   socket.on('local:transfer:to-agent', ({ filePath, destAgentId, destPath, transferId }) => {
+    if (!socketHasRole(socket, 'operator')) {
+      socket.emit('file:transfer:status', { transferId, success: false, error: 'Forbidden' });
+      return;
+    }
     const dstSocket = findAgentSocket(destAgentId);
     if (!dstSocket) {
       socket.emit('file:transfer:status', { transferId, success: false, error: 'Agent not connected' });
@@ -729,6 +733,10 @@ dashNsp.on('connection', (socket) => {
 
   // ─ Transfer: agent → local (pull file from agent to server disk)
   socket.on('local:transfer:from-agent', ({ sourceAgentId, filePath, destPath, transferId }) => {
+    if (!socketHasRole(socket, 'operator')) {
+      socket.emit('file:transfer:status', { transferId, success: false, error: 'Forbidden' });
+      return;
+    }
     const srcSocket = findAgentSocket(sourceAgentId);
     if (!srcSocket) {
       socket.emit('file:transfer:status', { transferId, success: false, error: 'Agent not connected' });
@@ -764,9 +772,10 @@ dashNsp.on('connection', (socket) => {
   });
 
   socket.on('service:action', ({ agentId, serviceName, action }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'service:action');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('service_action', `Admin ${action} service ${serviceName}`, agentId);
+      store.addEvent('service_action', `${socket.user.username} ${action} service ${serviceName}`, agentId);
       agentSocket.emit('service:action', { serviceName, action });
     }
   });

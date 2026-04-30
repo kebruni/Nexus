@@ -79,6 +79,7 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/analytics', 'nav.analytics'],
       ['/dashboard/scripts', 'nav.scripts'],
       ['/dashboard/groups', 'nav.groups'],
+      ['/dashboard/users', 'nav.users'],
       ['/dashboard/computer', 'nav.computerDetails'],
     ];
     for (const [prefix, key] of map) {
