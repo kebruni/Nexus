@@ -300,6 +300,85 @@ app.put('/api/agents/:id/group', authMiddleware, (req, res) => {
   res.json(agent);
 });
 
+// ── Bulk actions ──────────────────────────────────────────
+// One request fans a single command out to every online agent in a
+// target set. The set is either an explicit `agentIds` array OR every
+// agent currently assigned to `groupName`. Offline agents are reported
+// in the response (`skipped`) so the UI can tell the operator what was
+// missed without aborting the whole bulk action.
+const BULK_ACTIONS = new Set(['execute', 'reboot', 'shutdown', 'lockscreen', 'alarm']);
+
+app.post('/api/bulk/command', authMiddleware, (req, res) => {
+  const { action, groupName, agentIds, command } = req.body || {};
+  if (!BULK_ACTIONS.has(action)) {
+    return res.status(400).json({ error: 'Invalid action', allowed: Array.from(BULK_ACTIONS) });
+  }
+  if (action === 'execute' && (!command || typeof command !== 'string')) {
+    return res.status(400).json({ error: '`command` is required for action=execute' });
+  }
+
+  // Resolve target list.
+  let targets = [];
+  if (Array.isArray(agentIds) && agentIds.length) {
+    targets = agentIds
+      .map((id) => store.getAgent(id))
+      .filter(Boolean);
+  } else if (groupName) {
+    targets = store.getAgentsByGroup(groupName);
+  } else {
+    return res.status(400).json({ error: 'Either `groupName` or `agentIds[]` is required' });
+  }
+
+  if (!targets.length) {
+    return res.status(404).json({ error: 'No matching agents' });
+  }
+
+  const dispatched = [];
+  const skipped = [];
+
+  for (const agent of targets) {
+    const sock = findAgentSocket(agent.id);
+    if (!sock) {
+      skipped.push({ agentId: agent.id, hostname: agent.hostname, reason: 'offline' });
+      continue;
+    }
+    switch (action) {
+      case 'execute':
+        sock.emit('command:execute', { command, requestId: `${Date.now()}-${agent.id}` });
+        break;
+      case 'reboot':
+        sock.emit('command:reboot');
+        break;
+      case 'shutdown':
+        sock.emit('command:shutdown');
+        break;
+      case 'lockscreen':
+        sock.emit('command:lockscreen');
+        break;
+      case 'alarm':
+        sock.emit('command:alarm');
+        break;
+    }
+    dispatched.push({ agentId: agent.id, hostname: agent.hostname });
+  }
+
+  const scope = groupName ? `group "${groupName}"` : `${targets.length} selected`;
+  const detail = action === 'execute' ? `: ${command}` : '';
+  store.addEvent(
+    `bulk_${action}`,
+    `Bulk ${action} to ${scope} — ${dispatched.length} sent, ${skipped.length} skipped${detail}`,
+  );
+
+  res.json({
+    action,
+    target: groupName ? { groupName } : { agentIds: targets.map((a) => a.id) },
+    dispatched,
+    skipped,
+    sent: dispatched.length,
+    total: targets.length,
+  });
+});
+
 // ── Scripts API ───────────────────────────────────────────
 app.get('/api/scripts', authMiddleware, (req, res) => {
   res.json(store.getScripts());

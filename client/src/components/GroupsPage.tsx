@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Agent } from '../types';
-import { Plus, Trash2, FolderOpen, UserPlus } from 'lucide-react';
+import { Plus, Trash2, FolderOpen, UserPlus, Power, Lock, Terminal as TerminalIcon, RotateCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -12,12 +12,25 @@ interface Group {
   createdAt: string;
 }
 
+type BulkAction = 'execute' | 'reboot' | 'shutdown' | 'lockscreen';
+
+interface BulkResult {
+  group: string;
+  action: BulkAction;
+  sent: number;
+  total: number;
+  skipped: number;
+  ts: number;
+}
+
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');
   const [assignAgent, setAssignAgent] = useState<{ agentId: string; group: string } | null>(null);
+  const [busyGroup, setBusyGroup] = useState<string | null>(null);
+  const [lastBulk, setLastBulk] = useState<Record<string, BulkResult>>({});
   const { t } = useLanguage();
   const { isDark } = useTheme();
 
@@ -51,7 +64,66 @@ export default function GroupsPage() {
   };
 
   const agentsInGroup = (groupName: string) => agents.filter((a) => a.group === groupName);
+  const onlineInGroup = (groupName: string) => agentsInGroup(groupName).filter((a) => a.status === 'online');
   const unassigned = agents.filter((a) => !a.group);
+
+  const runBulk = async (group: Group, action: BulkAction, command?: string) => {
+    const members = agentsInGroup(group.name);
+    if (members.length === 0) {
+      window.alert(t('groups.bulkEmpty'));
+      return;
+    }
+    const online = onlineInGroup(group.name);
+    if (online.length === 0) {
+      window.alert(t('groups.bulkNoOnline'));
+      return;
+    }
+    const actionLabel: Record<BulkAction, string> = {
+      execute: t('groups.bulkRun'),
+      reboot: t('groups.bulkReboot'),
+      shutdown: t('groups.bulkShutdown'),
+      lockscreen: t('groups.bulkLock'),
+    };
+    if (!window.confirm(t('groups.bulkConfirm', { action: actionLabel[action], count: online.length, group: group.name }))) {
+      return;
+    }
+    setBusyGroup(group.name);
+    try {
+      const body: Record<string, unknown> = { action, groupName: group.name };
+      if (action === 'execute' && command) body.command = command;
+      const res = await fetch(`${API_BASE}/bulk/command`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        window.alert(data.error || 'Failed');
+        return;
+      }
+      setLastBulk((prev) => ({
+        ...prev,
+        [group.name]: {
+          group: group.name,
+          action,
+          sent: data.sent || 0,
+          total: data.total || 0,
+          skipped: (data.skipped || []).length,
+          ts: Date.now(),
+        },
+      }));
+    } catch (err) {
+      window.alert(String(err));
+    } finally {
+      setBusyGroup(null);
+    }
+  };
+
+  const promptAndRun = (group: Group) => {
+    const cmd = window.prompt(t('groups.bulkCommandPrompt'));
+    if (!cmd || !cmd.trim()) return;
+    runBulk(group, 'execute', cmd.trim());
+  };
 
   return (
     <div className="h-full flex flex-col max-w-5xl mx-auto py-4 sm:py-8 px-1 sm:pr-8 space-y-4 sm:space-y-6">
@@ -113,6 +185,59 @@ export default function GroupsPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Bulk actions */}
+                {members.length > 0 && (
+                  <div className={`mb-3 flex flex-wrap items-center gap-2 ${isDark ? 'text-zinc-300' : 'text-gray-700'}`}>
+                    <span className={`text-[11px] uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-400'} mr-1`}>
+                      {t('groups.bulkActions')}:
+                    </span>
+                    <button
+                      onClick={() => promptAndRun(group)}
+                      disabled={busyGroup === group.name}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition disabled:opacity-50 ${isDark ? 'border-zinc-700 hover:bg-zinc-900 text-zinc-200' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                      title={t('groups.bulkRun')}
+                    >
+                      <TerminalIcon className="w-3.5 h-3.5" />
+                      {t('groups.bulkRun')}
+                    </button>
+                    <button
+                      onClick={() => runBulk(group, 'reboot')}
+                      disabled={busyGroup === group.name}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition disabled:opacity-50"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      {t('groups.bulkReboot')}
+                    </button>
+                    <button
+                      onClick={() => runBulk(group, 'shutdown')}
+                      disabled={busyGroup === group.name}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition disabled:opacity-50"
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      {t('groups.bulkShutdown')}
+                    </button>
+                    <button
+                      onClick={() => runBulk(group, 'lockscreen')}
+                      disabled={busyGroup === group.name}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition disabled:opacity-50 ${isDark ? 'border-zinc-700 hover:bg-zinc-900 text-zinc-200' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      {t('groups.bulkLock')}
+                    </button>
+                    {lastBulk[group.name] && (
+                      <span className={`text-[11px] ml-1 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                        {t('groups.bulkResult', {
+                          sent: lastBulk[group.name].sent,
+                          total: lastBulk[group.name].total,
+                          skipped: lastBulk[group.name].skipped > 0
+                            ? t('groups.bulkResultSkipped', { skipped: lastBulk[group.name].skipped })
+                            : '',
+                        })}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Assign dropdown */}
                 {assignAgent?.group === group.name && (
