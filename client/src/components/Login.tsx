@@ -16,6 +16,9 @@ interface LoginProps {
 export default function Login({ onLogin }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -36,10 +39,61 @@ export default function Login({ onLogin }: LoginProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
 
+      if (data.mustChangePassword) {
+        // Defer storing token until password is changed.
+        setPendingToken(data.token);
+        setLoading(false);
+        return;
+      }
+
       localStorage.setItem('pc-hub-token', data.token);
       onLogin(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPassword.length < 8) {
+      setError(t('login.passwordTooShort'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t('login.passwordMismatch'));
+      return;
+    }
+    if (newPassword === password) {
+      setError(t('login.passwordSame'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${pendingToken}`,
+        },
+        body: JSON.stringify({ currentPassword: password, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Password change failed');
+      // Re-login with the new password to get a fresh token without the flag.
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password: newPassword }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) throw new Error(loginData.error || 'Re-login failed');
+      localStorage.setItem('pc-hub-token', loginData.token);
+      onLogin(loginData.token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Password change failed');
     } finally {
       setLoading(false);
     }
@@ -96,7 +150,62 @@ export default function Login({ onLogin }: LoginProps) {
           <p className={`${isDark ? 'text-slate-400' : 'text-gray-500'} mt-2`}>{t('login.subtitle')}</p>
         </div>
 
-        {/* Login Form */}
+        {/* Login / Change Password Form */}
+        {pendingToken ? (
+          <form
+            onSubmit={handleChangePassword}
+            className={`${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200 shadow-lg'} backdrop-blur-lg border rounded-2xl p-6 sm:p-8 shadow-xl`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Lock className="w-5 h-5 text-amber-400" />
+              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('login.changePasswordTitle')}</h2>
+            </div>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mb-5`}>{t('login.changePasswordSubtitle')}</p>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span className="text-sm text-red-400">{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-gray-600'} mb-1.5`}>{t('login.newPassword')}</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className={`w-full px-4 py-2.5 ${isDark ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
+                  placeholder="••••••••"
+                  required
+                  autoFocus
+                  minLength={8}
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-gray-600'} mb-1.5`}>{t('login.confirmPassword')}</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full px-4 py-2.5 ${isDark ? 'bg-slate-900/50 border-slate-600 text-white placeholder-slate-500' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
+                  placeholder="••••••••"
+                  required
+                  minLength={8}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition shadow-lg shadow-blue-600/20"
+            >
+              {loading ? t('login.signingIn') : t('login.savePassword')}
+            </button>
+          </form>
+        ) : (
         <form
           onSubmit={handleSubmit}
           className={`${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200 shadow-lg'} backdrop-blur-lg border rounded-2xl p-6 sm:p-8 shadow-xl`}
@@ -151,6 +260,7 @@ export default function Login({ onLogin }: LoginProps) {
             {t('login.default')}
           </p>
         </form>
+        )}
       </div>
     </div>
   );

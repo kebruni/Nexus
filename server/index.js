@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config');
 const store = require('./store');
-const { authenticate, authMiddleware, socketAuthMiddleware, agentAuthMiddleware } = require('./auth');
+const { authenticate, changeAdminPassword, authMiddleware, socketAuthMiddleware, agentAuthMiddleware, logSecurityWarnings, isMustChangePassword } = require('./auth');
 
 /* ── Local file-system helpers (server machine) ────────── */
 const os = require('os');
@@ -182,7 +182,19 @@ app.post('/api/auth/login', (req, res) => {
 
 // Verify token
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
-  res.json({ valid: true, user: req.user });
+  // Reflect the token's own `mustChangePassword` claim so the client treats
+  // a sticky pre-change-password session as still pending, even after the
+  // server-side flag has already been cleared by an earlier change.
+  res.json({ valid: true, user: req.user, mustChangePassword: !!req.user.mustChangePassword });
+});
+
+// Change admin password (used to clear the mustChangePassword flag set on first boot).
+app.post('/api/auth/change-password', authMiddleware, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const result = changeAdminPassword(currentPassword, newPassword);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('admin_password_changed', `Admin ${req.user.username} changed their password`);
+  res.json({ success: true });
 });
 
 // Get all agents
@@ -781,8 +793,24 @@ server.listen(config.PORT, () => {
 ║  Socket.IO:      ws://localhost:${config.PORT}                  ║
 ║  Agent NS:       /agent                                  ║
 ║  Dashboard NS:   /dashboard                              ║
-║                                                          ║
-║  Default Admin:  admin / admin123                        ║
 ╚══════════════════════════════════════════════════════════╝
   `);
+  logSecurityWarnings();
 });
+
+// ── Graceful shutdown: flush in-memory store to disk ─────
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[Server] Received ${signal}, flushing store and exiting...`);
+  try {
+    store.flushSync();
+  } catch (err) {
+    console.error('[Server] Flush failed during shutdown:', err.message);
+  }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

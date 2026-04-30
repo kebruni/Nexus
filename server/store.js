@@ -1,8 +1,12 @@
 /**
- * PC Control Hub — In-Memory Data Store
- * Stores agents, metrics history, event logs, chat, alerts, groups.
- * Can be swapped for Redis in production.
+ * PC Control Hub — In-Memory Data Store with JSON-file persistence.
+ *
+ * Hot read/write path stays in memory. Mutations schedule a debounced atomic
+ * snapshot to .data/store.json so eventLog, chat, alert rules, alerts, groups
+ * and scripts survive a server restart.
  */
+
+const persistence = require('./persistence');
 
 class Store {
   constructor() {
@@ -38,8 +42,59 @@ class Store {
 
     this.HISTORY_LIMIT = 200;
 
+    this._loadFromDisk();
+
     // Garbage collection for dead agents (run every hour)
     setInterval(() => this.cleanupDeadAgents(), 60 * 60 * 1000);
+  }
+
+  // ── Persistence ─────────────────────────────────────────
+
+  _loadFromDisk() {
+    const data = persistence.loadStore();
+    if (!data || typeof data !== 'object') return;
+
+    if (Array.isArray(data.eventLog)) this.eventLog = data.eventLog;
+    if (Array.isArray(data.alertRules)) this.alertRules = data.alertRules;
+    if (Array.isArray(data.alerts)) this.alerts = data.alerts;
+    if (Array.isArray(data.scripts)) this.scripts = data.scripts;
+
+    if (data.chatMessages && typeof data.chatMessages === 'object') {
+      for (const [agentId, msgs] of Object.entries(data.chatMessages)) {
+        if (Array.isArray(msgs)) this.chatMessages.set(agentId, msgs);
+      }
+    }
+
+    if (data.groups && typeof data.groups === 'object') {
+      for (const [name, group] of Object.entries(data.groups)) {
+        this.groups.set(name, group);
+      }
+    }
+
+    console.log(
+      `[Store] Loaded persisted data: ${this.eventLog.length} events, ` +
+        `${this.alertRules.length} alert rules, ${this.alerts.length} alerts, ` +
+        `${this.scripts.length} scripts, ${this.groups.size} groups`
+    );
+  }
+
+  _snapshot() {
+    return {
+      eventLog: this.eventLog,
+      alertRules: this.alertRules,
+      alerts: this.alerts,
+      scripts: this.scripts,
+      chatMessages: Object.fromEntries(this.chatMessages),
+      groups: Object.fromEntries(this.groups),
+    };
+  }
+
+  _persist() {
+    persistence.scheduleStoreSave(() => this._snapshot());
+  }
+
+  flushSync() {
+    persistence.flushSync(() => this._snapshot());
   }
 
   // ── Garbage Collection ──────────────────────────────────
@@ -141,6 +196,8 @@ class Store {
     if (history.length > this.HISTORY_LIMIT) {
       history.splice(0, history.length - this.HISTORY_LIMIT);
     }
+    // Metrics history is intentionally NOT persisted — it's high-volume and
+    // not useful after a restart.
   }
 
   getMetricsHistory(agentId, limit = 60) {
@@ -164,6 +221,7 @@ class Store {
     if (this.eventLog.length > 1000) {
       this.eventLog = this.eventLog.slice(0, 1000);
     }
+    this._persist();
     return event;
   }
 
@@ -192,6 +250,7 @@ class Store {
     const msgs = this.chatMessages.get(agentId);
     msgs.push(msg);
     if (msgs.length > 500) msgs.splice(0, msgs.length - 500);
+    this._persist();
     return msg;
   }
 
@@ -214,6 +273,7 @@ class Store {
       agentId: rule.agentId || null,
     };
     this.alertRules.push(alertRule);
+    this._persist();
     return alertRule;
   }
 
@@ -221,12 +281,15 @@ class Store {
     const rule = this.alertRules.find((r) => r.id === ruleId);
     if (rule) {
       Object.assign(rule, updates);
+      this._persist();
     }
     return rule;
   }
 
   deleteAlertRule(ruleId) {
+    const before = this.alertRules.length;
     this.alertRules = this.alertRules.filter((r) => r.id !== ruleId);
+    if (this.alertRules.length !== before) this._persist();
   }
 
   getAlertRules() {
@@ -283,6 +346,7 @@ class Store {
             this.alerts.unshift(alert);
             if (this.alerts.length > 500) this.alerts = this.alerts.slice(0, 500);
             newAlerts.push(alert);
+            this._persist();
           }
         }
       } else {
@@ -294,7 +358,10 @@ class Store {
 
   acknowledgeAlert(alertId) {
     const alert = this.alerts.find((a) => a.id === alertId);
-    if (alert) alert.acknowledged = true;
+    if (alert) {
+      alert.acknowledged = true;
+      this._persist();
+    }
     return alert;
   }
 
@@ -311,6 +378,7 @@ class Store {
   addGroup(name, color = '#3b82f6') {
     const group = { name, color, createdAt: new Date().toISOString() };
     this.groups.set(name, group);
+    this._persist();
     return group;
   }
 
@@ -320,6 +388,7 @@ class Store {
     for (const [, agent] of this.agents) {
       if (agent.group === name) agent.group = null;
     }
+    this._persist();
   }
 
   getGroups() {
@@ -356,11 +425,14 @@ class Store {
       createdAt: new Date().toISOString(),
     };
     this.scripts.push(script);
+    this._persist();
     return script;
   }
 
   deleteScript(id) {
+    const before = this.scripts.length;
     this.scripts = this.scripts.filter((s) => s.id !== id);
+    if (this.scripts.length !== before) this._persist();
   }
 
   getScripts() {
