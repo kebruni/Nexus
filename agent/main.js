@@ -1,14 +1,10 @@
-// Handle Squirrel installer events
-if (require('electron-squirrel-startup')) {
-    process.exit(0);
-}
-
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, dialog, shell } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { io } = require('socket.io-client');
-const config = require('./config');
+const { resolveConfig, writePersistedConfig, CONFIG_FILE } = require('./runtimeConfig');
+const { runtimePath } = require('./paths');
 const { getSystemInfo, collectMetrics } = require('./metrics');
 const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAction, lockScreen, soundAlarm } = require('./systemControl');
 const { listDirectory, readFile, deleteFile } = require('./fileManager');
@@ -20,16 +16,25 @@ let mainWindow;
 let tray;
 let socket;
 let metricsInterval;
-const AGENT_ID = (() => {
-  const idFile = path.join(__dirname, '.agent-id');
+let config = resolveConfig();
+
+// Agent ID lives in the user-writable runtime dir so it survives reinstalls
+// and works inside Program Files (which is read-only when packaged).
+function loadOrCreateAgentId() {
+  const idFile = runtimePath('.agent-id');
   try {
     const existing = fs.readFileSync(idFile, 'utf-8').trim();
     if (existing) return existing;
   } catch (_) {}
   const newId = `agent-${os.hostname()}-${Date.now().toString(36)}`;
-  fs.writeFileSync(idFile, newId, 'utf-8');
+  try {
+    fs.writeFileSync(idFile, newId, 'utf-8');
+  } catch (err) {
+    console.error('[AgentID] Failed to persist:', err.message);
+  }
   return newId;
-})();
+}
+const AGENT_ID = loadOrCreateAgentId();
 
 // Ограничение на один запуск
 const gotTheLock = app.requestSingleInstanceLock();
@@ -66,8 +71,9 @@ function createWindow() {
   
   // mainWindow.webContents.openDevTools(); 
 
+  const startHidden = process.argv.includes('--hidden');
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (!startHidden) mainWindow.show();
   });
 
   mainWindow.on('close', (event) => {
@@ -91,7 +97,8 @@ function createTray() {
     const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
-      { label: 'Open Agent', click: () => mainWindow.show() },
+      { label: 'Open Agent', click: () => mainWindow && mainWindow.show() },
+      { label: 'Open config folder', click: () => shell.openPath(path.dirname(CONFIG_FILE)) },
       { type: 'separator' },
       { label: 'Exit', click: () => {
           app.isQuitting = true;
@@ -99,9 +106,9 @@ function createTray() {
         }
       }
     ]);
-    tray.setToolTip('PC Control Hub Agent');
+    tray.setToolTip(`PC Control Hub Agent\n${config.SERVER_URL}`);
     tray.setContextMenu(contextMenu);
-    tray.on('double-click', () => mainWindow.show());
+    tray.on('double-click', () => mainWindow && mainWindow.show());
   } catch (e) {
     console.error('Tray creation failed:', e.message);
   }
@@ -111,7 +118,22 @@ if (process.platform === 'win32') {
   app.setAppUserModelId(app.name || 'PC Control Hub Agent');
 }
 
+// On Windows, auto-start the agent on user login when installed (so the agent
+// behaves like a normal background utility — Slack/Discord/etc).
+function enableAutoLaunchOnLogin() {
+  try {
+    if (process.platform !== 'win32' || !app.isPackaged) return;
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      args: ['--hidden'],
+    });
+  } catch (err) {
+    console.error('[AutoLaunch]', err.message);
+  }
+}
+
 app.whenReady().then(() => {
+  enableAutoLaunchOnLogin();
   createWindow();
   createTray();
   startAgentLogic();
@@ -293,7 +315,25 @@ function updateUI(channel, data) {
 }
 
 ipcMain.handle('get-agent-info', async () => {
-  return { hostname: os.hostname(), agentId: AGENT_ID, server: config.SERVER_URL };
+  return {
+    hostname: os.hostname(),
+    agentId: AGENT_ID,
+    server: config.SERVER_URL,
+    configFile: CONFIG_FILE,
+  };
+});
+
+ipcMain.handle('update-server-url', async (_event, serverUrl) => {
+  if (typeof serverUrl !== 'string' || !/^https?:\/\//i.test(serverUrl)) {
+    return { success: false, error: 'Invalid URL' };
+  }
+  writePersistedConfig({ serverUrl: serverUrl.replace(/\/+$/, '') });
+  dialog.showMessageBoxSync({
+    type: 'info',
+    title: 'Server URL updated',
+    message: 'Restart the agent for the change to take effect.',
+  });
+  return { success: true };
 });
 
 ipcMain.on('send-chat-message', (event, text) => {

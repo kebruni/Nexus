@@ -30,13 +30,37 @@ function useCountUp(target: number, duration = 600) {
   return value;
 }
 
+type InstallerInfo = {
+  available: boolean;
+  fileName?: string;
+  version?: string;
+  size?: number;
+  modified?: string;
+  hint?: string;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 export default function HomeDashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [installer, setInstaller] = useState<InstallerInfo | null>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { isDark } = useTheme();
+
+  useEffect(() => {
+    fetch(`${API_BASE}/agent/installer/info`)
+      .then((r) => r.json())
+      .then((data: InstallerInfo) => setInstaller(data))
+      .catch(() => setInstaller({ available: false }));
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('pc-hub-token');
@@ -145,23 +169,43 @@ export default function HomeDashboard() {
         </div>
 
         {/* Install New Agent Action */}
-        <div className={`${isDark ? 'bg-gradient-to-br from-emerald-600/20 to-emerald-900/10 border-emerald-500/20' : 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200'} border rounded-2xl sm:rounded-3xl p-5 sm:p-8 relative overflow-hidden flex flex-col justify-center min-h-[200px] sm:min-h-[250px] group cursor-pointer`} 
+        <div
+          className={`${isDark ? 'bg-gradient-to-br from-emerald-600/20 to-emerald-900/10 border-emerald-500/20' : 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200'} border rounded-2xl sm:rounded-3xl p-5 sm:p-8 relative overflow-hidden flex flex-col justify-center min-h-[200px] sm:min-h-[250px] group ${installer && !installer.available ? 'opacity-90' : 'cursor-pointer'}`}
           onClick={() => {
-            const link = document.createElement('a');
-            link.href = '/AgentSetup.exe';
-            link.download = 'AgentSetup.exe';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }}>
-           <div className="absolute top-0 right-0 p-8 opacity-10">
-             <Download className="w-24 sm:w-32 h-24 sm:h-32 text-emerald-500" />
-           </div>
-           <h3 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>Скачать Агент</h3>
-           <p className={`${isDark ? 'text-emerald-200/60' : 'text-emerald-700/60'} max-w-sm mb-4 sm:mb-6 text-sm sm:text-base`}>Нажмите, чтобы скачать установочный файл (AgentSetup.exe). Просто запустите его на целевом ПК.</p>
-           <div className={`mt-auto flex items-center gap-2 ${isDark ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-emerald-600 group-hover:text-emerald-700'} font-medium transition-colors`}>
-             Скачать AgentSetup.exe <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-           </div>
+            if (installer && !installer.available) return;
+            window.location.href = `${API_BASE}/agent/installer/download`;
+          }}
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Download className="w-24 sm:w-32 h-24 sm:h-32 text-emerald-500" />
+          </div>
+          <h3 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>{t('home.downloadAgent')}</h3>
+          {installer && installer.available ? (
+            <>
+              <p className={`${isDark ? 'text-emerald-200/60' : 'text-emerald-700/60'} max-w-sm mb-3 text-sm sm:text-base`}>
+                {t('home.downloadAgentDesc')}
+              </p>
+              <p className={`text-xs ${isDark ? 'text-emerald-200/40' : 'text-emerald-700/50'} mb-4 sm:mb-6 font-mono`}>
+                v{installer.version} · {formatBytes(installer.size || 0)}
+                {installer.modified ? ` · ${new Date(installer.modified).toLocaleDateString()}` : ''}
+              </p>
+              <div className={`mt-auto flex items-center gap-2 ${isDark ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-emerald-600 group-hover:text-emerald-700'} font-medium transition-colors`}>
+                {t('home.downloadAgentCta')} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className={`${isDark ? 'text-emerald-200/60' : 'text-emerald-700/60'} max-w-sm mb-3 text-sm sm:text-base`}>
+                {t('home.downloadAgentUnavailable')}
+              </p>
+              <p className={`text-[11px] ${isDark ? 'text-emerald-200/40' : 'text-emerald-700/50'} font-mono mb-4 sm:mb-6`}>
+                npm --prefix agent run build
+              </p>
+              <div className={`mt-auto flex items-center gap-2 ${isDark ? 'text-emerald-400/60' : 'text-emerald-600/60'} font-medium`}>
+                {t('home.downloadAgentBuildHint')}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Recent Events (Make it span to align properly if needed, or leave it normal) */}

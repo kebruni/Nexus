@@ -83,7 +83,7 @@
 
   <!-- Footer -->
   <div class="flex items-center justify-between text-[9px] uppercase font-bold tracking-widest text-white/30 shrink-0 px-1">
-    <span>Uplink: <span id="server-url" class="text-white/50 lowercase">disconnected</span></span>
+    <span>Uplink: <span id="server-url" class="text-white/50 lowercase">disconnected</span> <button id="edit-server" class="ml-1 text-indigo-400/70 hover:text-indigo-300">[edit]</button></span>
     <span id="hostname" class="text-indigo-400/70"></span>
   </div>
 
@@ -136,6 +136,18 @@
 
     chatInput.addEventListener('input', () => {
       sendBtn.disabled = !chatInput.value.trim();
+    });
+
+    document.getElementById('edit-server').addEventListener('click', async () => {
+      const current = serverUrl.innerText && serverUrl.innerText !== 'disconnected'
+        ? `http://${serverUrl.innerText}`
+        : 'http://localhost:3000';
+      const next = window.prompt('Server URL (http(s)://host:port):', current);
+      if (!next) return;
+      const res = await window.electronAPI.updateServerUrl(next.trim());
+      if (!res.success) {
+        window.alert('Failed to update server URL: ' + (res.error || 'unknown'));
+      }
     });
 
     chatForm.addEventListener('submit', (e) => {

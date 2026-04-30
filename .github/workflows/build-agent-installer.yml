@@ -1,0 +1,76 @@
+name: Build Agent Installer (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/build-agent-installer.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/build-agent-installer.yml'
+  workflow_dispatch:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Nexus Agent NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: agent/package-lock.json
+
+      - name: Install agent dependencies
+        working-directory: agent
+        run: npm ci
+
+      - name: Syntax check agent entrypoints
+        working-directory: agent
+        shell: pwsh
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check paths.js
+          node --check runtimeConfig.js
+
+      - name: Build NSIS installer
+        working-directory: agent
+        env:
+          # Avoid hitting GitHub release publishing
+          GH_TOKEN: ''
+        run: npm run build
+
+      - name: List build artifacts
+        working-directory: agent/dist-gui
+        shell: pwsh
+        run: Get-ChildItem -Recurse | Select-Object FullName, Length
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-Agent-Setup-windows-x64
+          path: |
+            agent/dist-gui/Nexus-Agent-Setup-*.exe
+            agent/dist-gui/Nexus-Agent-Setup-*.exe.blockmap
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach installer to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent/dist-gui/Nexus-Agent-Setup-*.exe
+            agent/dist-gui/Nexus-Agent-Setup-*.exe.blockmap

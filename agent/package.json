@@ -2,16 +2,20 @@
   "name": "pc-control-agent",
   "version": "1.1.0",
   "description": "PC Control Hub Agent with GUI",
-  "author": "Nurbek",
+  "author": {
+    "name": "Nexus",
+    "email": "support@nexus.local"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder build --win --x64",
+    "build": "electron-builder build --win nsis --x64 --publish never",
+    "build:portable": "electron-builder build --win portable --x64 --publish never",
+    "build:dir": "electron-builder build --win --dir --x64",
     "pkg-legacy": "pkg index.js --targets node18-win-x64 --output dist/pc-control-agent-console.exe"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1",
     "iconv-lite": "^0.7.2",
     "node-notifier": "^10.0.1",
     "node-os-utils": "^2.0.1",
@@ -22,18 +26,66 @@
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
-    "electron-winstaller": "^5.4.0"
+    "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.pccontrol.agent",
-    "productName": "PC Control Agent",
-    "win": {
-      "target": "portable",
-      "icon": "assets/icon.ico"
-    },
+    "appId": "com.nexus.pccontrol.agent",
+    "productName": "Nexus Agent",
+    "copyright": "Copyright (c) 2024-2025 Nexus",
+    "asar": true,
     "directories": {
-      "output": "dist-gui"
+      "output": "dist-gui",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "config.js",
+      "runtimeConfig.js",
+      "paths.js",
+      "metrics.js",
+      "fileManager.js",
+      "screenCapture.js",
+      "systemControl.js",
+      "clipboard.js",
+      "ui/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "!**/*.{md,markdown,test.js,spec.js}",
+      "!**/{LICENSE,LICENSE.txt,LICENCE,LICENCE.txt,README.md,readme.md,CHANGELOG.md,changelog.md}",
+      "!**/.git",
+      "!.agent-id"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "Nexus-Agent-Setup-${version}.${ext}",
+      "executableName": "Nexus Agent",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Nexus"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nexus Agent",
+      "menuCategory": "Nexus",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "Nexus Agent ${version}",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "artifactName": "Nexus-Agent-Setup-${version}.${ext}"
     }
   }
 }
