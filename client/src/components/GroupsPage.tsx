@@ -3,6 +3,7 @@ import type { Agent } from '../types';
 import { Plus, Trash2, FolderOpen, UserPlus, Power, Lock, Terminal as TerminalIcon, RotateCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useHasRole } from '../hooks/useCurrentUser';
 
 const API_BASE = '/api';
 
@@ -33,6 +34,7 @@ export default function GroupsPage() {
   const [lastBulk, setLastBulk] = useState<Record<string, BulkResult>>({});
   const { t } = useLanguage();
   const { isDark } = useTheme();
+  const canActOnGroup = useHasRole('operator');
 
   const token = localStorage.getItem('pc-hub-token');
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), [token]);
@@ -187,7 +189,7 @@ export default function GroupsPage() {
                 </div>
 
                 {/* Bulk actions */}
-                {members.length > 0 && (
+                {members.length > 0 && canActOnGroup && (
                   <div className={`mb-3 flex flex-wrap items-center gap-2 ${isDark ? 'text-zinc-300' : 'text-gray-700'}`}>
                     <span className={`text-[11px] uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-400'} mr-1`}>
                       {t('groups.bulkActions')}:

@@ -4,6 +4,7 @@ import type { Agent } from '../types';
 import { Plus, Play, Trash2, FileCode, Terminal } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useHasRole } from '../hooks/useCurrentUser';
 
 const API_BASE = '/api';
 
@@ -25,6 +26,7 @@ export default function ScriptsPage() {
   const [running, setRunning] = useState(false);
   const { t } = useLanguage();
   const { isDark } = useTheme();
+  const canRun = useHasRole('operator');
 
   useEffect(() => {
     const token = localStorage.getItem('pc-hub-token');
@@ -101,13 +103,15 @@ export default function ScriptsPage() {
           <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>{t('scripts.title')}</h2>
           <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-gray-500'} mt-1`}>{t('scripts.subtitle')}</p>
         </div>
-        <button
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-xl font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          {t('scripts.new')}
-        </button>
+        {canRun && (
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-xl font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            {t('scripts.new')}
+          </button>
+        )}
       </div>
 
       {/* Device selector */}
@@ -182,20 +186,24 @@ export default function ScriptsPage() {
               <div className="flex items-center justify-between mb-2">
                 <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.name}</h3>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleRun(s.code)}
-                    disabled={!selectedAgent || running}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-lg hover:bg-emerald-500/20 transition disabled:opacity-40"
-                  >
-                    <Play className="w-3 h-3" />
-                    {t('scripts.run')}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(s.id)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg hover:bg-red-500/20 transition"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+                  {canRun && (
+                    <>
+                      <button
+                        onClick={() => handleRun(s.code)}
+                        disabled={!selectedAgent || running}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-lg hover:bg-emerald-500/20 transition disabled:opacity-40"
+                      >
+                        <Play className="w-3 h-3" />
+                        {t('scripts.run')}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(s.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg hover:bg-red-500/20 transition"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               <pre className={`text-xs font-mono ${isDark ? 'text-zinc-500' : 'text-gray-400'} whitespace-pre-wrap max-h-24 overflow-auto`}>{s.code}</pre>
