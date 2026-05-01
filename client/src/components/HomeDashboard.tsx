@@ -358,12 +358,12 @@ export default function HomeDashboard() {
             accent="accent"
           />
           <ActionCard
-            title={t('home.manageDevices')}
-            sub={t('home.manageDesc')}
-            cta={t('home.goToDevices')}
+            title={t('home.recentActivity')}
+            sub={`${events.length} recent events · ${alerts.length} active alerts`}
+            cta={t('home.viewAll')}
             icon={<Activity className="w-5 h-5" />}
-            onClick={() => navigate('/dashboard/devices')}
-            accent="accent"
+            onClick={() => navigate('/dashboard/events')}
+            accent={alerts.length > 0 ? 'warn' : 'ok'}
           />
         </div>
       </section>
