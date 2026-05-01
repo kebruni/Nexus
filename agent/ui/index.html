@@ -4,91 +4,515 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nexus Agent</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { background-color: #0B0C10; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 1rem; backdrop-filter: blur(10px); }
-    .status-online { color: #10b981; }
-    .status-offline { color: #ef4444; }
-    #chat-messages { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
-    #chat-messages::-webkit-scrollbar { width: 4px; }
-    #chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-    .msg-admin { background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 1rem 1rem 0.25rem 1rem; }
-    .msg-agent { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 1rem 1rem 1rem 0.25rem; }
-    .fade-in { animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    :root {
+      --bg-app:        #0B0D10;
+      --bg-rail:       #0E1116;
+      --bg-panel:      #12161C;
+      --bg-panel-2:    #161B22;
+      --bg-elevated:   #1A2029;
+
+      --fg-strong:     #E7ECF2;
+      --fg:            #C7CDD6;
+      --fg-muted:      #8A93A1;
+      --fg-dim:        #5C6370;
+
+      --border:        rgba(255,255,255,0.07);
+      --border-strong: rgba(255,255,255,0.14);
+      --divider:       rgba(255,255,255,0.05);
+
+      --accent:        #7C8CFF;
+      --accent-strong: #5B7FFF;
+      --accent-soft:   rgba(124,140,255,0.14);
+      --warm:          #FF7849;
+
+      --ok:            #2ECC71;
+      --info:          #38BDF8;
+      --warn:          #F4B740;
+      --danger:        #F45C6E;
+
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --r-xl: 18px;
+
+      --shadow-panel: 0 10px 30px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.04) inset;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(900px 500px at -10% -20%, rgba(124,140,255,0.10), transparent 60%),
+        radial-gradient(700px 500px at 110% 110%, rgba(255,120,73,0.07), transparent 60%),
+        var(--bg-app);
+      color: var(--fg);
+      font-size: 13px;
+      letter-spacing: -0.005em;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    /* Grid background subtle */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+      mask-image: radial-gradient(800px 600px at 50% 30%, #000 30%, transparent 80%);
+      z-index: 0;
+    }
+
+    .num-mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-panel);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    .nx-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      gap: 12px;
+    }
+    .nx-brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nx-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #5B7FFF);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 6px 20px rgba(124,140,255,0.45);
+    }
+    .nx-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--fg-strong);
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
+    .nx-subtitle {
+      font-size: 10px;
+      color: var(--fg-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-top: 2px;
+    }
+    .nx-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--fg-dim);
+      margin-top: 4px;
+    }
+
+    /* Status pill */
+    .nx-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      background: rgba(244, 92, 110, 0.10);
+      border: 1px solid rgba(244, 92, 110, 0.28);
+      color: var(--danger);
+    }
+    .nx-pill.is-ok {
+      background: rgba(46, 204, 113, 0.10);
+      border-color: rgba(46, 204, 113, 0.28);
+      color: var(--ok);
+    }
+    .nx-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: currentColor;
+      box-shadow: 0 0 10px currentColor;
+    }
+    .nx-pill.is-ok .nx-dot {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+
+    /* Stats strip */
+    .nx-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 14px;
+    }
+    .nx-stat {
+      background: var(--bg-panel-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nx-stat-label {
+      font-size: 9px;
+      color: var(--fg-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+    }
+    .nx-stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg-strong);
+    }
+
+    /* Chat panel */
+    .nx-chat {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .nx-chat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--divider);
+      background: var(--bg-panel-2);
+    }
+    .nx-chat-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--fg-strong);
+    }
+    .nx-chat-title-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .nx-msg-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--fg-muted);
+      background: var(--bg-elevated);
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 999px;
+    }
+    #chat-messages::-webkit-scrollbar-track { background: transparent; }
+
+    .nx-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+      padding: 30px 20px;
+      color: var(--fg-muted);
+    }
+    .nx-empty-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-dim);
+    }
+    .nx-empty-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .nx-empty-sub {
+      font-size: 11px;
+      max-width: 220px;
+      color: var(--fg-muted);
+    }
+
+    .nx-msg {
+      display: flex;
+      animation: fadeIn 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .nx-msg.is-agent { justify-content: flex-end; }
+    .nx-msg-bubble {
+      max-width: 85%;
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .nx-msg.is-admin .nx-msg-bubble {
+      background: var(--accent-soft);
+      border: 1px solid rgba(124,140,255,0.30);
+      color: var(--fg-strong);
+      border-radius: 12px 12px 12px 3px;
+    }
+    .nx-msg.is-agent .nx-msg-bubble {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--fg-strong);
+      border-radius: 12px 12px 3px 12px;
+    }
+    .nx-msg-sender {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 3px;
+      color: var(--fg-muted);
+    }
+    .nx-msg.is-admin .nx-msg-sender { color: var(--accent); }
+    .nx-msg-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--fg-dim);
+      margin-top: 4px;
+    }
+    .nx-msg.is-agent .nx-msg-time { text-align: right; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Input bar */
+    .nx-chat-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-top: 1px solid var(--divider);
+      background: var(--bg-panel-2);
+    }
+    .nx-input {
+      flex: 1;
+      background: var(--bg-app);
+      border: 1px solid var(--border);
+      color: var(--fg-strong);
+      font-size: 13px;
+      font-family: inherit;
+      padding: 9px 12px;
+      border-radius: var(--r-md);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .nx-input::placeholder { color: var(--fg-dim); }
+    .nx-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .nx-send-btn {
+      appearance: none;
+      border: 0;
+      background: var(--accent);
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--r-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      box-shadow: 0 4px 14px rgba(124,140,255,0.32);
+    }
+    .nx-send-btn:hover { background: var(--accent-strong); }
+    .nx-send-btn:active { transform: scale(0.96); }
+    .nx-send-btn:disabled {
+      background: var(--bg-elevated);
+      color: var(--fg-dim);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Footer */
+    .nx-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--fg-dim);
+      gap: 12px;
+    }
+    .nx-footer .v {
+      color: var(--fg-muted);
+      text-transform: lowercase;
+      letter-spacing: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+    .nx-footer button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      padding: 0 4px;
+    }
+    .nx-footer button:hover { color: var(--accent-strong); }
   </style>
 </head>
-<body class="flex flex-col h-screen p-4 gap-4 overflow-hidden selection:bg-indigo-500/30">
+<body>
 
   <!-- Header -->
-  <header class="glass-panel flex items-center justify-between px-5 py-4 shrink-0 shadow-lg relative overflow-hidden">
-    <!-- Abstract glow -->
-    <div class="absolute -top-10 -right-10 w-24 h-24 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
-
-    <div class="flex flex-col z-10">
-      <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 flex items-center gap-2.5">
-        <svg class="w-6 h-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12 2.1 7.1"/><path d="M12 12l9.9 4.9"/></svg>
-        Nexus Core
-      </h1>
-      <p id="agent-id" class="text-[10px] text-white/40 font-mono mt-1 font-medium tracking-wide"></p>
+  <header class="panel nx-header">
+    <div class="nx-brand-row">
+      <div class="nx-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+      </div>
+      <div>
+        <div class="nx-title">Nexus Agent</div>
+        <div class="nx-subtitle">Endpoint daemon</div>
+        <div id="agent-id" class="nx-id"></div>
+      </div>
     </div>
-    
-    <div class="flex items-center gap-2.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/5 z-10">
-      <span class="relative flex h-2.5 w-2.5">
-        <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-red-400"></span>
-        <span id="status-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-      </span>
-      <span id="status-text" class="status-offline font-bold uppercase text-[10px] tracking-wider">Offline</span>
+
+    <div id="status-chip" class="nx-pill">
+      <span id="status-dot" class="nx-dot"></span>
+      <span id="status-text">Offline</span>
     </div>
   </header>
 
-  <!-- Chat Area (Main Focus) -->
-  <div class="glass-panel flex flex-col flex-1 min-h-0 !p-0 overflow-hidden shadow-xl">
-    <div class="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-white/[0.02]">
-      <div class="flex items-center gap-2">
-        <div class="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <!-- Quick Stats -->
+  <section class="panel nx-stats">
+    <div class="nx-stat">
+      <span class="nx-stat-label">Host</span>
+      <span class="nx-stat-value" id="hostname-stat">—</span>
+    </div>
+    <div class="nx-stat">
+      <span class="nx-stat-label">Uplink</span>
+      <span class="nx-stat-value" id="uplink-stat" style="font-size:11px">disconnected</span>
+    </div>
+    <div class="nx-stat">
+      <span class="nx-stat-label">Messages</span>
+      <span class="nx-stat-value" id="msg-count">0</span>
+    </div>
+  </section>
+
+  <!-- Chat Area -->
+  <div class="panel nx-chat">
+    <div class="nx-chat-head">
+      <div class="nx-chat-title">
+        <div class="nx-chat-title-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
         </div>
-        <span class="text-xs font-semibold text-white/90">Console Chat</span>
+        Console stream
       </div>
-      <span id="msg-count" class="text-[10px] font-medium text-white/30 bg-white/5 px-2 py-0.5 rounded-full">0 msgs</span>
+      <span class="nx-msg-count"><span id="msg-count-pill">0</span> msgs</span>
     </div>
 
-    <div id="chat-messages" class="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-      <div id="chat-empty" class="flex flex-col items-center justify-center h-full text-center opacity-50">
-        <div class="w-12 h-12 rounded-2xl border border-white/10 flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    <div id="chat-messages">
+      <div id="chat-empty" class="nx-empty">
+        <div class="nx-empty-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
         </div>
-        <p class="text-sm font-medium text-white">Listening for connection...</p>
-        <p class="text-[11px] text-white/60 mt-1.5 max-w-[200px]">Administrative commands and messages will appear here when connected.</p>
+        <div class="nx-empty-title">Listening for connection…</div>
+        <div class="nx-empty-sub">Administrative commands and messages will appear here once the agent links to the hub.</div>
       </div>
     </div>
 
-    <div class="px-4 py-3 border-t border-white/5 bg-black/20">
-      <form id="chat-form" class="flex items-center gap-2">
-        <input
-          id="chat-input"
-          type="text"
-          placeholder="Send trace message..."
-          autocomplete="off"
-          class="flex-1 bg-white/5 border border-white/10 text-white text-sm rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500/50 transition placeholder-white/30"
-        />
-        <button type="submit" class="p-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl transition disabled:opacity-30 disabled:scale-95 shadow-[0_0_15px_rgba(99,102,241,0.3)] disabled:shadow-none" id="send-btn" disabled>
-          <svg class="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </form>
-    </div>
+    <form id="chat-form" class="nx-chat-input">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="Send trace message…"
+        autocomplete="off"
+        class="nx-input"
+      />
+      <button type="submit" class="nx-send-btn" id="send-btn" disabled aria-label="Send">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </form>
   </div>
 
   <!-- Footer -->
-  <div class="flex items-center justify-between text-[9px] uppercase font-bold tracking-widest text-white/30 shrink-0 px-1">
-    <span>Uplink: <span id="server-url" class="text-white/50 lowercase">disconnected</span> <button id="edit-server" class="ml-1 text-indigo-400/70 hover:text-indigo-300">[edit]</button></span>
-    <span id="hostname" class="text-indigo-400/70"></span>
+  <div class="nx-footer">
+    <span>Uplink: <span id="server-url" class="v">disconnected</span> <button id="edit-server">[edit]</button></span>
+    <span id="hostname"></span>
   </div>
 
   <script>
-    const statusPing = document.getElementById('status-ping');
+    const statusChip = document.getElementById('status-chip');
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const chatMessages = document.getElementById('chat-messages');
@@ -97,37 +521,38 @@
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     const serverUrl = document.getElementById('server-url');
-    const msgCount = document.getElementById('msg-count');
+    const uplinkStat = document.getElementById('uplink-stat');
+    const msgCountEl = document.getElementById('msg-count');
+    const msgCountPill = document.getElementById('msg-count-pill');
+    const hostnameStat = document.getElementById('hostname-stat');
 
     let messageCounter = 0;
 
     // Init
     window.electronAPI.getAgentInfo().then(info => {
-      document.getElementById('agent-id').innerText = info.agentId.split('-').slice(0,3).join('-');
+      document.getElementById('agent-id').innerText = info.agentId;
       document.getElementById('hostname').innerText = info.hostname;
+      hostnameStat.innerText = info.hostname;
     });
 
     // Status Updates
     window.electronAPI.onStatusUpdate((data) => {
       if (data.online) {
-        statusPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-emerald-400';
-        statusPing.style.display = 'block';
-        statusDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_#10b981]';
-        statusText.innerText = 'Connected';
-        statusText.className = 'status-online font-bold uppercase text-[10px] tracking-wider';
-        serverUrl.innerText = data.server.replace(/^https?:\/\//, '');
+        statusChip.classList.add('is-ok');
+        statusText.innerText = 'Online';
+        const sUrl = data.serverUrl || 'connected';
+        serverUrl.innerText = sUrl;
+        uplinkStat.innerText = sUrl.replace(/^https?:\/\//, '');
       } else {
-        statusPing.className = '';
-        statusPing.style.display = 'none';
-        statusDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500/80';
+        statusChip.classList.remove('is-ok');
         statusText.innerText = 'Offline';
-        statusText.className = 'status-offline font-bold uppercase text-[10px] tracking-wider';
         serverUrl.innerText = 'disconnected';
+        uplinkStat.innerText = 'disconnected';
       }
     });
 
     // Ignore incoming metrics
-    window.electronAPI.onMetricsUpdate((metrics) => { /* UI ignores metrics */ });
+    window.electronAPI.onMetricsUpdate(() => { /* UI ignores metrics */ });
 
     // Chat
     window.electronAPI.onChatMessage((data) => {
@@ -140,7 +565,7 @@
 
     document.getElementById('edit-server').addEventListener('click', async () => {
       const current = serverUrl.innerText && serverUrl.innerText !== 'disconnected'
-        ? `http://${serverUrl.innerText}`
+        ? serverUrl.innerText
         : 'http://localhost:3000';
       const next = window.prompt('Server URL (http(s)://host:port):', current);
       if (!next) return;
@@ -162,32 +587,31 @@
 
     function addMessage(sender, text, type) {
       messageCounter++;
-      if (chatEmpty) chatEmpty.remove();
-      
+      if (chatEmpty && chatEmpty.parentNode) chatEmpty.remove();
+
       const div = document.createElement('div');
       div.textContent = text;
       const safeText = div.innerHTML;
-      
+
       const sDiv = document.createElement('div');
       sDiv.textContent = sender;
       const safeSender = sDiv.innerHTML;
 
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
       const msgEl = document.createElement('div');
-      msgEl.className = 'flex ' + (type === 'agent' ? 'justify-end' : 'justify-start') + ' fade-in';
-      msgEl.innerHTML = 
-        '<div class="max-w-[85%] px-3.5 py-2.5 shadow-sm ' + (type === 'agent' ? 'msg-agent' : 'msg-admin') + '">' +
-          '<div class="text-[9px] font-bold tracking-wider uppercase ' + (type === 'agent' ? 'text-white/40' : 'text-indigo-400/80') + ' mb-1">' + safeSender + '</div>' +
-          '<p class="text-[13px] leading-relaxed text-white/95 break-words whitespace-pre-wrap">' + safeText + '</p>' +
-          '<div class="text-[8px] text-white/30 mt-1.5 ' + (type === 'agent' ? 'text-right' : 'text-left') + '">' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + '</div>' +
+      msgEl.className = 'nx-msg ' + (type === 'agent' ? 'is-agent' : 'is-admin');
+      msgEl.innerHTML =
+        '<div class="nx-msg-bubble">' +
+          '<div class="nx-msg-sender">' + safeSender + '</div>' +
+          '<p style="margin:0">' + safeText + '</p>' +
+          '<div class="nx-msg-time">' + time + '</div>' +
         '</div>';
       chatMessages.appendChild(msgEl);
-      msgCount.innerText = messageCounter + ' msgs';
-      
-      // Auto-scroll logic smoothly
-      chatMessages.scrollTo({
-        top: chatMessages.scrollHeight,
-        behavior: 'smooth'
-      });
+      msgCountEl.innerText = messageCounter;
+      msgCountPill.innerText = messageCounter;
+
+      chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
     }
   </script>
 </body>

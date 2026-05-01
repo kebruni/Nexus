@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -21,14 +21,17 @@ import {
   Users,
   ShieldCheck,
   Webhook,
+  Wifi,
+  WifiOff,
+  Server,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { getSocket } from '../api/socket';
-import type { Language } from '../i18n/translations';
-import type { TranslationKey } from '../i18n/translations';
+import type { Agent } from '../types';
+import type { Language, TranslationKey } from '../i18n/translations';
 
 interface LayoutProps {
   onLogout: () => void;
@@ -37,9 +40,49 @@ interface LayoutProps {
 const LANG_LABELS: Record<Language, string> = { en: 'EN', ru: 'RU', kz: 'KZ' };
 const LANG_ORDER: Language[] = ['en', 'ru', 'kz'];
 
+type NavItem = { to: string; key: TranslationKey; icon: typeof LayoutDashboard; end?: boolean };
+type NavGroup = { label: TranslationKey; items: NavItem[]; admin?: boolean };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'nav.main',
+    items: [{ to: '/dashboard', end: true, key: 'nav.dashboard', icon: LayoutDashboard }],
+  },
+  {
+    label: 'nav.tools',
+    items: [
+      { to: '/dashboard/devices', key: 'nav.devices', icon: MonitorSmartphone },
+      { to: '/dashboard/files', key: 'nav.fileExplorer', icon: FolderOpen },
+      { to: '/dashboard/terminal', key: 'nav.terminal', icon: TerminalSquare },
+      { to: '/dashboard/remote', key: 'nav.remoteDesktop', icon: Tv },
+      { to: '/dashboard/sftp', key: 'nav.sftp', icon: ArrowLeftRight },
+      { to: '/dashboard/chat', key: 'nav.chat', icon: MessageSquare },
+      { to: '/dashboard/scripts', key: 'nav.scripts', icon: FileCode },
+    ],
+  },
+  {
+    label: 'nav.insights',
+    items: [
+      { to: '/dashboard/events', key: 'nav.events', icon: Activity },
+      { to: '/dashboard/alerts', key: 'nav.alerts', icon: BellRing },
+      { to: '/dashboard/groups', key: 'nav.groups', icon: Users },
+    ],
+  },
+  {
+    label: 'nav.admin',
+    admin: true,
+    items: [
+      { to: '/dashboard/users', key: 'nav.users', icon: ShieldCheck },
+      { to: '/dashboard/webhooks', key: 'nav.webhooks', icon: Webhook },
+    ],
+  },
+];
+
 export default function Layout({ onLogout }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [socketConnected, setSocketConnected] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { lang, setLang, t } = useLanguage();
@@ -56,15 +99,7 @@ export default function Layout({ onLogout }: LayoutProps) {
   const closeSidebar = () => setSidebarOpen(false);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ${
-      isActive
-        ? isDark
-          ? 'bg-zinc-800 text-white shadow-md border border-zinc-700/50'
-          : 'bg-blue-50 text-blue-700 shadow-sm border border-blue-200'
-        : isDark
-          ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-          : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-    }`;
+    `nx-nav-link${isActive ? ' is-active' : ''}`;
 
   const getPageTitle = useCallback((): string => {
     const path = location.pathname;
@@ -85,9 +120,7 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/computer', 'nav.computerDetails'],
     ];
     for (const [prefix, key] of map) {
-      if (path.includes(prefix.replace('/dashboard/', '/dashboard/'))) {
-        if (path.startsWith(prefix) || path.includes(prefix.split('/').pop()!)) return t(key);
-      }
+      if (path.startsWith(prefix)) return t(key);
     }
     if (path === '/dashboard') return t('nav.dashboard');
     return 'Nexus';
@@ -99,211 +132,174 @@ export default function Layout({ onLogout }: LayoutProps) {
     document.title = title === 'Nexus' ? 'Nexus' : `Nexus — ${title}`;
   }, [getPageTitle]);
 
-  // Toast notifications for agent events
+  // Socket connection status + live agents counter
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
+    setSocketConnected(socket.connected);
+
+    const onAgentsList = (list: Agent[]) => setAgents(list);
     const onConnected = (agent: { hostname: string }) => {
       toast(`${agent.hostname} ${t('devices.ready').toLowerCase()}`, 'success');
     };
-    const onDisconnected = () => {
-      toast(`Agent disconnected`, 'warning');
+    const onDisconnected = () => toast(`Agent disconnected`, 'warning');
+    const onSocketConnect = () => setSocketConnected(true);
+    const onSocketDisconnect = () => setSocketConnected(false);
+    const onMetrics = ({ agentId, metrics }: { agentId: string; metrics: Agent['metrics'] }) => {
+      setAgents((prev) =>
+        prev.map((a) => (a.id === agentId ? { ...a, metrics, status: 'online' } : a)),
+      );
     };
 
+    socket.emit('agents:requestList');
+    socket.on('agents:list', onAgentsList);
     socket.on('agent:connected', onConnected);
     socket.on('agent:disconnected', onDisconnected);
+    socket.on('agent:metrics', onMetrics);
+    socket.on('connect', onSocketConnect);
+    socket.on('disconnect', onSocketDisconnect);
 
     return () => {
+      socket.off('agents:list', onAgentsList);
       socket.off('agent:connected', onConnected);
       socket.off('agent:disconnected', onDisconnected);
+      socket.off('agent:metrics', onMetrics);
+      socket.off('connect', onSocketConnect);
+      socket.off('disconnect', onSocketDisconnect);
     };
   }, [toast, t]);
 
-  // Theme-aware classes
-  const bg = isDark ? 'bg-[#0A0A0A]' : 'bg-gray-50';
-  const textColor = isDark ? 'text-zinc-300' : 'text-gray-700';
-  const sidebarBg = isDark ? 'bg-[#121212] border-zinc-800' : 'bg-white border-gray-200';
-  const headerBg = isDark ? 'bg-[#0A0A0A]/80 border-zinc-800/60' : 'bg-white/80 border-gray-200';
-  const btnBg = isDark ? 'bg-[#1A1A1A] border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-100';
-  const labelColor = isDark ? 'text-zinc-600' : 'text-gray-400';
-  const closeBtnClass = isDark ? 'text-zinc-400 hover:text-white hover:bg-zinc-800' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100';
-  const logoutBtnClass = isDark
-    ? 'text-zinc-400 bg-[#1A1A1A] hover:bg-zinc-800 hover:text-red-400 border-zinc-800'
-    : 'text-gray-500 bg-gray-100 hover:bg-red-50 hover:text-red-500 border-gray-200';
-  const logoBg = isDark ? 'bg-zinc-800 border-zinc-700' : 'bg-gray-100 border-gray-200';
-  const logoText = isDark ? 'text-white' : 'text-gray-900';
-  const logoSub = isDark ? 'text-zinc-500' : 'text-gray-400';
+  // Close sidebar when route changes (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  const onlineCount = useMemo(() => agents.filter((a) => a.status === 'online').length, [agents]);
+  const totalAgents = agents.length;
+
+  const visibleGroups = NAV_GROUPS.filter((g) => !g.admin || isAdmin);
 
   return (
-    <div className={`relative h-screen ${bg} ${textColor} font-sans selection:bg-blue-500/30`}>
-      {/* Overlay */}
+    <div className="nx-shell">
+      {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-40 transition-opacity duration-300 ${
-          isDark ? 'bg-black/60' : 'bg-black/30'
-        } backdrop-blur-sm ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`nx-overlay ${sidebarOpen ? 'is-open' : ''}`}
         onClick={closeSidebar}
+        aria-hidden
       />
 
-      {/* Sliding Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full z-50 w-[280px] sm:w-[300px] ${sidebarBg} border-r flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Sidebar Header */}
-        <div className="p-5 pt-5 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${logoBg} border rounded-[14px] flex items-center justify-center shadow-lg`}>
-              <MonitorSmartphone className={`w-5 h-5 ${isDark ? 'text-zinc-200' : 'text-gray-600'}`} strokeWidth={1.5} />
+      {/* Sidebar */}
+      <aside className={`nx-rail ${sidebarOpen ? 'is-open' : ''}`}>
+        <div className="nx-rail-head">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="nx-logo-mark">
+              <Server className="w-4 h-4" strokeWidth={2} />
             </div>
-            <div>
-              <h1 className={`text-lg font-semibold tracking-tight leading-tight ${logoText}`}>Nexus</h1>
-              <p className={`text-[11px] ${logoSub} font-medium tracking-wide`}>{t('nav.remoteAccess')}</p>
+            <div className="min-w-0">
+              <div className="nx-brand text-[15px] leading-none">Nexus</div>
+              <div className="text-[10px] text-[color:var(--fg-dim)] tracking-[0.16em] uppercase mt-1 font-semibold">
+                Control&nbsp;Hub
+              </div>
             </div>
           </div>
-          <button onClick={closeSidebar} className={`w-9 h-9 flex items-center justify-center rounded-xl ${closeBtnClass} transition-all duration-200`}>
-            <X className="w-5 h-5" />
+          <button onClick={closeSidebar} className="nx-btn nx-btn-icon nx-btn-sm nx-rail-close" aria-label="Close">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          <div className="mb-5">
-            <p className={`px-4 py-2 text-[10px] font-bold ${labelColor} uppercase tracking-widest`}>{t('nav.main')}</p>
-            <NavLink to="/dashboard" end className={linkClass} onClick={closeSidebar}>
-              <LayoutDashboard className="w-4 h-4" />
-              {t('nav.dashboard')}
-            </NavLink>
-          </div>
-
-          <div className="mb-5">
-            <p className={`px-4 py-2 text-[10px] font-bold ${labelColor} uppercase tracking-widest`}>{t('nav.tools')}</p>
-            <NavLink to="/dashboard/devices" className={linkClass} onClick={closeSidebar}>
-              <MonitorSmartphone className="w-4 h-4" />
-              {t('nav.devices')}
-            </NavLink>
-            <NavLink to="/dashboard/files" className={linkClass} onClick={closeSidebar}>
-              <FolderOpen className="w-4 h-4" />
-              {t('nav.fileExplorer')}
-            </NavLink>
-            <NavLink to="/dashboard/terminal" className={linkClass} onClick={closeSidebar}>
-              <TerminalSquare className="w-4 h-4" />
-              {t('nav.terminal')}
-            </NavLink>
-            <NavLink to="/dashboard/remote" className={linkClass} onClick={closeSidebar}>
-              <Tv className="w-4 h-4" />
-              {t('nav.remoteDesktop')}
-            </NavLink>
-            <NavLink to="/dashboard/sftp" className={linkClass} onClick={closeSidebar}>
-              <ArrowLeftRight className="w-4 h-4" />
-              {t('nav.sftp')}
-            </NavLink>
-            <NavLink to="/dashboard/chat" className={linkClass} onClick={closeSidebar}>
-              <MessageSquare className="w-4 h-4" />
-              {t('nav.chat')}
-            </NavLink>
-            <NavLink to="/dashboard/scripts" className={linkClass} onClick={closeSidebar}>
-              <FileCode className="w-4 h-4" />
-              {t('nav.scripts')}
-            </NavLink>
-          </div>
-
-          <div className="mb-5">
-            <p className={`px-4 py-2 text-[10px] font-bold ${labelColor} uppercase tracking-widest`}>{t('nav.insights')}</p>
-            <NavLink to="/dashboard/events" className={linkClass} onClick={closeSidebar}>
-              <Activity className="w-4 h-4" />
-              {t('nav.events')}
-            </NavLink>
-            <NavLink to="/dashboard/alerts" className={linkClass} onClick={closeSidebar}>
-              <BellRing className="w-4 h-4" />
-              {t('nav.alerts')}
-            </NavLink>
-            <NavLink to="/dashboard/groups" className={linkClass} onClick={closeSidebar}>
-              <Users className="w-4 h-4" />
-              {t('nav.groups')}
-            </NavLink>
-          </div>
-
-          {isAdmin && (
-            <div className="mb-5">
-              <p className={`px-4 py-2 text-[10px] font-bold ${labelColor} uppercase tracking-widest`}>{t('nav.admin')}</p>
-              <NavLink to="/dashboard/users" className={linkClass} onClick={closeSidebar}>
-                <ShieldCheck className="w-4 h-4" />
-                {t('nav.users')}
-              </NavLink>
-              <NavLink to="/dashboard/webhooks" className={linkClass} onClick={closeSidebar}>
-                <Webhook className="w-4 h-4" />
-                {t('nav.webhooks')}
-              </NavLink>
+        <nav className="nx-rail-nav">
+          {visibleGroups.map((group) => (
+            <div className="nx-rail-section" key={group.label}>
+              <div className="nx-eyebrow nx-rail-section-label">{t(group.label)}</div>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
+                    <Icon className="w-4 h-4 shrink-0" strokeWidth={1.8} />
+                    <span className="truncate">{t(item.key)}</span>
+                  </NavLink>
+                );
+              })}
             </div>
-          )}
+          ))}
         </nav>
 
-        {/* Footer */}
-        <div className="p-3 mx-3 mt-auto mb-3">
-          <button
-            onClick={handleLogout}
-            className={`flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium ${logoutBtnClass} border rounded-2xl transition-all duration-300`}
-          >
+        <div className="nx-rail-foot">
+          <div className="nx-rail-status">
+            <div className="flex items-center justify-between">
+              <span className="nx-eyebrow">Cluster</span>
+              <span className={`nx-pill ${socketConnected ? 'is-ok is-pulse' : 'is-danger'}`}>
+                <span className="nx-dot" />
+                {socketConnected ? 'Live' : 'Down'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[12px] text-[color:var(--fg-muted)]">Agents</span>
+              <span className="num-mono text-[13px]">
+                <span className="text-[color:var(--ok)]">{onlineCount}</span>
+                <span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span>
+              </span>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="nx-btn nx-rail-logout">
             <LogOut className="w-4 h-4" />
             {t('nav.disconnect')}
           </button>
         </div>
       </aside>
 
-      {/* Top Bar */}
-      <header className={`sticky top-0 z-30 flex items-center gap-3 px-3 sm:px-5 py-2.5 ${headerBg} backdrop-blur-md border-b`}>
+      {/* Top bar */}
+      <header className="nx-topbar">
         <button
           onClick={() => setSidebarOpen(true)}
-          className={`w-10 h-10 flex items-center justify-center rounded-xl border ${btnBg} transition-all duration-200 shrink-0`}
+          className="nx-btn nx-btn-icon nx-btn-sm nx-topbar-burger"
+          aria-label="Open sidebar"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4" />
         </button>
-        
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1.5 min-w-0 truncate">
-          <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'} shrink-0`}>Nexus</span>
-          {location.pathname !== '/dashboard' && (
-            <>
-              <ChevronRight className={`w-3.5 h-3.5 ${isDark ? 'text-zinc-600' : 'text-gray-300'} shrink-0`} />
-              <span className={`text-base font-semibold ${isDark ? 'text-zinc-300' : 'text-gray-700'} truncate`}>{getPageTitle()}</span>
-            </>
-          )}
+
+        <nav className="nx-breadcrumbs">
+          <span className="nx-eyebrow text-[color:var(--fg-muted)]">Nexus</span>
+          <ChevronRight className="w-3 h-3 text-[color:var(--fg-dim)]" />
+          <span className="nx-section-title">{getPageTitle()}</span>
         </nav>
 
-        {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Current user / role badge */}
+          <div className="nx-chip hidden md:inline-flex" title="Connected agents">
+            {socketConnected ? <Wifi className="w-3.5 h-3.5 text-[color:var(--ok)]" /> : <WifiOff className="w-3.5 h-3.5 text-[color:var(--danger)]" />}
+            <span className="text-[color:var(--fg-muted)]">Online</span>
+            <strong>{onlineCount}<span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span></strong>
+          </div>
+
           {currentUser && (
-            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 h-9 rounded-xl border text-xs font-medium ${
-              currentUser.role === 'admin'
-                ? isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-700'
-                : currentUser.role === 'operator'
-                  ? isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : isDark ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'bg-gray-100 border-gray-200 text-gray-700'
-            }`} title={`${currentUser.username} — ${currentUser.role}`}>
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span className="font-semibold">{currentUser.username}</span>
+            <div
+              className={`nx-pill ${
+                currentUser.role === 'admin' ? 'is-accent' : currentUser.role === 'operator' ? 'is-ok' : 'is-muted'
+              } hidden sm:inline-flex`}
+              title={`${currentUser.username} — ${currentUser.role}`}
+            >
+              <ShieldCheck className="w-3 h-3" />
+              <span className="normal-case font-semibold tracking-normal">{currentUser.username}</span>
               <span className="opacity-60">·</span>
-              <span className="uppercase tracking-wider text-[10px]">{currentUser.role}</span>
+              <span>{currentUser.role}</span>
             </div>
           )}
 
-          {/* Theme toggle */}
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl border ${btnBg} transition-all duration-200`}
+            className="nx-btn nx-btn-icon nx-btn-sm"
             title={t('settings.theme')}
+            aria-label="Toggle theme"
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
-          {/* Language selector */}
           <div className="relative">
             <button
-              onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`h-9 flex items-center gap-1.5 px-2.5 rounded-xl border ${btnBg} transition-all duration-200 text-xs font-semibold`}
+              onClick={() => setLangMenuOpen((v) => !v)}
+              className="nx-btn nx-btn-sm"
+              title={t('settings.language')}
             >
               <Globe className="w-3.5 h-3.5" />
               <span>{LANG_LABELS[lang]}</span>
@@ -311,18 +307,18 @@ export default function Layout({ onLogout }: LayoutProps) {
             {langMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
-                <div className={`absolute right-0 mt-1.5 z-50 ${isDark ? 'bg-[#1A1A1A] border-zinc-700' : 'bg-white border-gray-200'} border rounded-xl shadow-xl overflow-hidden min-w-[100px]`}>
+                <div className="nx-dropdown">
                   {LANG_ORDER.map((l) => (
                     <button
                       key={l}
-                      onClick={() => { setLang(l); setLangMenuOpen(false); }}
-                      className={`flex items-center gap-2 w-full px-3.5 py-2 text-xs font-medium transition-colors ${
-                        l === lang
-                          ? isDark ? 'bg-zinc-800 text-white' : 'bg-blue-50 text-blue-700'
-                          : isDark ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      onClick={() => {
+                        setLang(l);
+                        setLangMenuOpen(false);
+                      }}
+                      className={`nx-dropdown-item ${l === lang ? 'is-active' : ''}`}
                     >
-                      {l === 'en' ? 'English' : l === 'ru' ? 'Русский' : 'Қазақша'}
+                      <span className="num-mono text-[10px] text-[color:var(--fg-dim)] w-6">{LANG_LABELS[l]}</span>
+                      <span>{l === 'en' ? 'English' : l === 'ru' ? 'Русский' : 'Қазақша'}</span>
                     </button>
                   ))}
                 </div>
@@ -332,8 +328,7 @@ export default function Layout({ onLogout }: LayoutProps) {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="overflow-auto p-3 sm:p-4" style={{ height: 'calc(100vh - 56px)' }}>
+      <main className="nx-main">
         <div key={location.pathname} className="page-enter">
           <Outlet />
         </div>

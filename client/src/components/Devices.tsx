@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Cpu, HardDrive, Laptop, Monitor, Clock } from 'lucide-react';
+import {
+  Cpu,
+  HardDrive,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  Server,
+  MemoryStick,
+  Activity,
+  Wifi,
+} from 'lucide-react';
 import { getSocket } from '../api/socket';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useTheme } from '../contexts/ThemeContext';
-import type { TranslationKey } from '../i18n/translations';
 import type { Agent } from '../types';
 
 const API_BASE = '/api';
@@ -17,7 +25,6 @@ function OsIcon({ platform, className }: { className?: string; platform: string 
       </svg>
     );
   }
-
   if (platform === 'darwin') {
     return (
       <svg viewBox="0 0 24 24" className={className} fill="currentColor">
@@ -25,7 +32,6 @@ function OsIcon({ platform, className }: { className?: string; platform: string 
       </svg>
     );
   }
-
   return (
     <svg viewBox="0 0 24 24" className={className} fill="currentColor">
       <path d="M12.5 2c-1.77 0-3.15 1.38-3.45 3.22-.18 1.12.2 2.25.89 3.03.38.43.26 1.1-.04 1.53-.62.87-1.6 1.51-2.43 2.36C6.25 13.4 5.5 15.09 5.5 17c0 .58.05 1.12.15 1.63.22 1.16.73 2.16 1.47 2.89.38.38.88.53 1.38.53h7c.5 0 1-.15 1.38-.53.74-.73 1.25-1.73 1.47-2.89.1-.51.15-1.05.15-1.63 0-1.91-.75-3.6-1.97-4.86-.83-.85-1.81-1.49-2.43-2.36-.3-.43-.42-1.1-.04-1.53.69-.78 1.07-1.91.89-3.03C14.65 3.38 13.27 2 12.5 2z" />
@@ -33,229 +39,333 @@ function OsIcon({ platform, className }: { className?: string; platform: string 
   );
 }
 
-function formatMemory(bytes: number) {
-  if (!bytes) return '--';
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+function buildSparkPath(values: number[], width = 100, height = 28) {
+  if (values.length < 2) return '';
+  const max = Math.max(...values, 1);
+  const step = width / (values.length - 1);
+  return values
+    .map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(2)},${(height - (v / max) * (height - 2)).toFixed(2)}`)
+    .join(' ');
 }
 
-function buildSparkPath(sparkData: number[]) {
-  if (sparkData.length < 2) return null;
-
-  const width = 100;
-  const height = 28;
-  const maxValue = Math.max(...sparkData, 1);
-  const step = width / (sparkData.length - 1);
-  const points = sparkData.map((value, index) => `${index * step},${height - (value / maxValue) * (height - 2)}`);
-
-  return `M${points.join(' L')}`;
+function formatRelativeTime(ts?: string, now: number = Date.now()): string {
+  if (!ts) return '—';
+  const diff = now - new Date(ts).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
+
+type SortKey = 'host' | 'status' | 'cpu' | 'mem' | 'disk' | 'lat' | 'last';
+type SortDir = 'asc' | 'desc';
 
 export default function Devices() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [latencies, setLatencies] = useState<Record<string, number>>({});
   const [sparkDataByAgent, setSparkDataByAgent] = useState<Record<string, number[]>>({});
   const [now, setNow] = useState(() => Date.now());
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('status');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { isDark } = useTheme();
 
   useEffect(() => {
-    const updateClock = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(updateClock);
+    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(tick);
   }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('pc-hub-token');
     if (token) {
       fetch(`${API_BASE}/agents`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((response) => response.json())
+        .then((r) => r.json())
         .then(setAgents)
         .catch(console.error);
     }
-
     const socket = getSocket();
     if (!socket) return;
 
     socket.emit('agents:requestList');
 
-    const handleAgentsList = (list: Agent[]) => setAgents(list);
-
-    const handleMetrics = ({ agentId, metrics }: { agentId: string; metrics: Agent['metrics'] }) => {
+    const onList = (list: Agent[]) => setAgents(list);
+    const onMetrics = ({ agentId, metrics }: { agentId: string; metrics: Agent['metrics'] }) => {
       if (!metrics) return;
-
-      setAgents((previousAgents) =>
-        previousAgents.map((agent) => (agent.id === agentId ? { ...agent, metrics, status: 'online' } : agent)),
-      );
-      setSparkDataByAgent((previous) => ({
-        ...previous,
-        [agentId]: [...(previous[agentId] || []).slice(-19), metrics.cpu.load],
+      setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, metrics, status: 'online' } : a)));
+      setSparkDataByAgent((prev) => ({
+        ...prev,
+        [agentId]: [...(prev[agentId] || []).slice(-29), metrics.cpu.load],
       }));
     };
-
-    const handleLatency = ({ agentId, latency }: { agentId: string; latency: number }) => {
-      setLatencies((previous) => ({ ...previous, [agentId]: latency }));
+    const onLatency = ({ agentId, latency }: { agentId: string; latency: number }) => {
+      setLatencies((prev) => ({ ...prev, [agentId]: latency }));
     };
 
-    socket.on('agents:list', handleAgentsList);
-    socket.on('agent:metrics', handleMetrics);
-    socket.on('agent:latency', handleLatency);
+    socket.on('agents:list', onList);
+    socket.on('agent:metrics', onMetrics);
+    socket.on('agent:latency', onLatency);
 
     return () => {
-      socket.off('agents:list', handleAgentsList);
-      socket.off('agent:metrics', handleMetrics);
-      socket.off('agent:latency', handleLatency);
+      socket.off('agents:list', onList);
+      socket.off('agent:metrics', onMetrics);
+      socket.off('agent:latency', onLatency);
     };
   }, []);
 
-  return (
-    <div className="h-full flex flex-col max-w-7xl mx-auto py-4 sm:py-8 px-1 sm:pr-8">
-      <div className="mb-4 sm:mb-8">
-        <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>{t('devices.title')}</h2>
-        <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-gray-500'} mt-1`}>{agents.length} {t('devices.connected')}</p>
-      </div>
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return agents.filter((a) => {
+      if (statusFilter === 'online' && a.status !== 'online') return false;
+      if (statusFilter === 'offline' && a.status === 'online') return false;
+      if (!q) return true;
+      return (
+        a.hostname.toLowerCase().includes(q) ||
+        (a.ip && a.ip.includes(q)) ||
+        a.id.toLowerCase().includes(q) ||
+        (a.platform && a.platform.toLowerCase().includes(q))
+      );
+    });
+  }, [agents, query, statusFilter]);
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-        {agents.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            isDark={isDark}
-            latency={latencies[agent.id]}
-            now={now}
-            onClick={() => navigate(`/dashboard/computer/${agent.id}`)}
-            sparkData={sparkDataByAgent[agent.id] || []}
-            t={t}
-          />
-        ))}
-        {agents.length === 0 && (
-          <div className={`col-span-full py-16 sm:py-20 flex flex-col items-center justify-center ${isDark ? 'bg-[#121212] border-zinc-800' : 'bg-white border-gray-200'} border border-dashed rounded-2xl`}>
-            <div className={`w-12 h-12 ${isDark ? 'bg-zinc-900' : 'bg-gray-100'} rounded-full flex items-center justify-center mb-3`}>
-              <Laptop className={`w-5 h-5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} strokeWidth={1.5} />
-            </div>
-            <p className={`${isDark ? 'text-zinc-400' : 'text-gray-600'} font-medium`}>{t('devices.noDevices')}</p>
-            <p className={`${isDark ? 'text-zinc-600' : 'text-gray-400'} text-sm mt-1`}>{t('devices.startAgent')}</p>
+  const sorted = useMemo(() => {
+    const copy = [...filtered];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    copy.sort((a, b) => {
+      const get = (x: Agent): number | string => {
+        switch (sortKey) {
+          case 'host': return x.hostname.toLowerCase();
+          case 'status': return x.status === 'online' ? 1 : 0;
+          case 'cpu': return x.metrics?.cpu?.load ?? -1;
+          case 'mem': return x.metrics?.memory?.usage ?? -1;
+          case 'disk': return x.metrics?.disk?.usage ?? -1;
+          case 'lat': return latencies[x.id] ?? -1;
+          case 'last': return x.connectedAt ? new Date(x.connectedAt).getTime() : 0;
+        }
+      };
+      const av = get(a);
+      const bv = get(b);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+    return copy;
+  }, [filtered, sortKey, sortDir, latencies]);
+
+  const onlineCount = agents.filter((a) => a.status === 'online').length;
+  const setSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else {
+      setSortKey(k);
+      setSortDir(k === 'host' ? 'asc' : 'desc');
+    }
+  };
+
+  const Th = ({ k, label, align }: { k: SortKey; label: string; align?: 'right' }) => (
+    <th onClick={() => setSort(k)} style={{ textAlign: align ?? 'left', cursor: 'pointer' }}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {sortKey === k &&
+          (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+      </span>
+    </th>
+  );
+
+  return (
+    <div className="nx-page">
+      <header className="nx-page-head">
+        <div>
+          <div className="nx-eyebrow">Inventory</div>
+          <h1 className="text-[24px] font-bold tracking-tight text-[color:var(--fg-strong)] mt-1">
+            {t('devices.title')}
+          </h1>
+          <p className="text-[13px] text-[color:var(--fg-muted)] mt-1">
+            {agents.length} {t('devices.subtitle')} · {onlineCount} online
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="nx-search">
+            <Search className="w-4 h-4 text-[color:var(--fg-dim)]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search host, IP, agent ID…"
+              className="nx-search-input"
+            />
           </div>
-        )}
+          <div className="nx-segmented">
+            {(['all', 'online', 'offline'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setStatusFilter(v)}
+                className={`nx-segmented-item ${statusFilter === v ? 'is-active' : ''}`}
+              >
+                {v === 'all' ? 'All' : v === 'online' ? 'Online' : 'Offline'}
+                <span className="num-mono text-[10px] text-[color:var(--fg-dim)] ml-1.5">
+                  {v === 'all' ? agents.length : v === 'online' ? onlineCount : agents.length - onlineCount}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <div className="nx-panel">
+        <div className="nx-panel-head">
+          <div className="nx-panel-title">
+            <Server className="w-4 h-4 text-[color:var(--accent)]" /> Agents
+            <span className="nx-tag ml-2">{sorted.length}</span>
+          </div>
+        </div>
+        <div className="nx-grid-wrap">
+          <table className="nx-grid">
+            <thead>
+              <tr>
+                <Th k="status" label="Status" />
+                <Th k="host" label="Host" />
+                <th>Platform</th>
+                <Th k="cpu" label="CPU" />
+                <Th k="mem" label="Memory" />
+                <Th k="disk" label="Disk" />
+                <th>Trend</th>
+                <Th k="lat" label="Lat" align="right" />
+                <Th k="last" label="Up" align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((agent) => (
+                <DeviceRow
+                  key={agent.id}
+                  agent={agent}
+                  latency={latencies[agent.id]}
+                  spark={sparkDataByAgent[agent.id] || []}
+                  now={now}
+                  onClick={() => navigate(`/dashboard/computer/${agent.id}`)}
+                />
+              ))}
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="nx-empty" style={{ padding: '38px 12px' }}>
+                      <Server className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
+                      <span>{t('devices.noDevices')}</span>
+                      <span className="text-[12px] text-[color:var(--fg-dim)] mt-1">{t('devices.startAgent')}</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-function AgentCard({
+function DeviceRow({
   agent,
-  isDark,
   latency,
+  spark,
   now,
   onClick,
-  sparkData,
-  t,
 }: {
   agent: Agent;
-  isDark: boolean;
   latency?: number;
+  spark: number[];
   now: number;
   onClick: () => void;
-  sparkData: number[];
-  t: (key: TranslationKey) => string;
 }) {
   const isOnline = agent.status === 'online';
-  const sparkPath = useMemo(() => buildSparkPath(sparkData), [sparkData]);
-  const uptimeLabel = useMemo(() => {
-    if (!agent.connectedAt || !isOnline) return null;
-
-    const elapsedMs = now - new Date(agent.connectedAt).getTime();
-    const hours = Math.floor(elapsedMs / 3_600_000);
-    const minutes = Math.floor((elapsedMs % 3_600_000) / 60_000);
-
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  }, [agent.connectedAt, isOnline, now]);
-
-  const latencyColor = latency == null
-    ? ''
-    : latency < 50
-      ? 'text-emerald-400'
-      : latency < 150
-        ? 'text-amber-400'
-        : 'text-red-400';
+  const cpu = agent.metrics?.cpu?.load ?? 0;
+  const mem = agent.metrics?.memory?.usage ?? 0;
+  const disk = agent.metrics?.disk?.usage ?? 0;
+  const sparkPath = useMemo(() => buildSparkPath(spark), [spark]);
+  const latencyTone = latency == null ? '' : latency < 50 ? 'is-ok' : latency < 150 ? 'is-warn' : 'is-danger';
+  const uptime = formatRelativeTime(agent.connectedAt, now);
 
   return (
-    <div
-      className={`${isDark ? 'bg-[#121212] border-zinc-800 hover:border-zinc-700 hover:bg-[#151515]' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50 shadow-sm'} border rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group flex flex-col relative`}
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-          isOnline ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : isDark ? 'bg-zinc-800 text-zinc-500' : 'bg-gray-100 text-gray-400'
-        }`}>
-          {agent.platform ? (
-            <OsIcon platform={agent.platform} className="w-5 h-5" />
-          ) : (
-            <Monitor className="w-5 h-5" strokeWidth={1.5} />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {isOnline && latency != null && (
-            <span className={`text-[10px] font-bold ${latencyColor} tabular-nums`} title="Latency">
-              {latency}ms
-            </span>
-          )}
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
-            isOnline ? 'bg-emerald-500/10 text-emerald-400' : isDark ? 'bg-zinc-800 text-zinc-500' : 'bg-gray-100 text-gray-400'
-          }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : isDark ? 'bg-zinc-600' : 'bg-gray-400'}`} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">
-              {isOnline ? t('devices.ready') : t('devices.offline')}
-            </span>
+    <tr onClick={onClick}>
+      <td style={{ width: 96 }}>
+        <span className={`nx-pill ${isOnline ? 'is-ok is-pulse' : 'is-muted'}`}>
+          <span className="nx-dot" />
+          {isOnline ? 'live' : 'off'}
+        </span>
+      </td>
+      <td>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`nx-row-icon ${isOnline ? 'is-on' : ''}`}>
+            <OsIcon platform={agent.platform || 'linux'} className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-[color:var(--fg-strong)] truncate">
+              {agent.hostname}
+            </div>
+            <div className="num-mono text-[11px] text-[color:var(--fg-dim)] truncate">
+              {agent.ip || agent.id.slice(0, 18)}
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="mb-2">
-        <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'} text-base mb-0.5 truncate group-hover:text-blue-400 transition-colors`}>{agent.hostname}</h3>
-        <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-gray-400'} font-mono truncate`}>{agent.ip}</p>
-      </div>
-
-      {isOnline && sparkPath && (
-        <div className="mb-2 h-7 w-full overflow-hidden opacity-60 group-hover:opacity-100 transition-opacity">
-          <svg viewBox="0 0 100 28" className="w-full h-full" preserveAspectRatio="none">
+      </td>
+      <td>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="nx-tag">{agent.platform || 'unknown'}</span>
+          {agent.metrics?.cpu?.cores != null && (
+            <span className="nx-tag">{agent.metrics.cpu.cores}c</span>
+          )}
+          {agent.metrics?.memory?.total != null && (
+            <span className="nx-tag">{(agent.metrics.memory.total / 1024 ** 3).toFixed(1)}gb</span>
+          )}
+        </div>
+      </td>
+      <BarCell value={cpu} accent="accent" />
+      <BarCell value={mem} accent="warm" />
+      <BarCell value={disk} accent="info" />
+      <td style={{ width: 110 }}>
+        {sparkPath ? (
+          <svg viewBox="0 0 100 28" className="block w-full h-7" preserveAspectRatio="none">
             <defs>
-              <linearGradient id={`spark-${agent.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+              <linearGradient id={`tg-${agent.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
               </linearGradient>
             </defs>
-            <path d={`${sparkPath} L100,28 L0,28 Z`} fill={`url(#spark-${agent.id})`} />
-            <path d={sparkPath} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d={`${sparkPath} L100,28 L0,28 Z`} fill={`url(#tg-${agent.id})`} />
+            <path d={sparkPath} fill="none" stroke="var(--accent)" strokeWidth={1.5} strokeLinecap="round" />
           </svg>
-        </div>
-      )}
+        ) : (
+          <span className="num-mono text-[11px] text-[color:var(--fg-dim)]">—</span>
+        )}
+      </td>
+      <td className="num-mono text-right" style={{ width: 70 }}>
+        {latency == null ? (
+          <span className="text-[color:var(--fg-dim)]">—</span>
+        ) : (
+          <span className={`nx-pill ${latencyTone}`}>{latency}ms</span>
+        )}
+      </td>
+      <td className="num-mono text-right text-[color:var(--fg-muted)]" style={{ width: 64 }}>
+        {isOnline ? uptime : '—'}
+      </td>
+    </tr>
+  );
+}
 
-      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${isDark ? 'text-zinc-500' : 'text-gray-400'} mt-auto pt-3 border-t ${isDark ? 'border-zinc-800' : 'border-gray-100'}`}>
-        {agent.platform && (
-          <span className="truncate max-w-[120px]" title={agent.osVersion || agent.platform}>
-            {agent.platform === 'win32' ? 'Windows' : agent.platform === 'darwin' ? 'macOS' : agent.platform}
-          </span>
-        )}
-        {agent.cpuModel && (
-          <span className="flex items-center gap-1 truncate max-w-[140px]" title={agent.cpuModel}>
-            <Cpu className="w-3 h-3 shrink-0" />
-            {agent.cpuCores || '?'}c
-          </span>
-        )}
-        {agent.totalMemory > 0 && (
-          <span className="flex items-center gap-1">
-            <HardDrive className="w-3 h-3 shrink-0" />
-            {formatMemory(agent.totalMemory)}
-          </span>
-        )}
-        {uptimeLabel && (
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3 shrink-0" />
-            {uptimeLabel}
-          </span>
-        )}
+function BarCell({ value, accent }: { value: number; accent: 'accent' | 'warm' | 'info' }) {
+  const tone = value > 85 ? 'danger' : value > 65 ? 'warn' : accent;
+  return (
+    <td style={{ minWidth: 130 }}>
+      <div className="flex items-center gap-2">
+        <div className="num-mono text-[12px] text-[color:var(--fg)] w-9 text-right">
+          {value > 0 ? value.toFixed(0) : '—'}
+        </div>
+        <div className={`nx-bar is-${tone} flex-1`}>
+          <span style={{ ['--pct' as never]: `${Math.min(100, value)}%` } as React.CSSProperties} />
+        </div>
       </div>
-    </div>
+    </td>
   );
 }
