@@ -44,6 +44,27 @@ jobs:
           node --check preload.js
           node --check paths.js
           node --check runtimeConfig.js
+          node --check installerDefaults.js
+
+      - name: Bake installer defaults
+        working-directory: agent
+        shell: pwsh
+        env:
+          NEXUS_DEFAULT_SERVER_URL: ${{ secrets.NEXUS_DEFAULT_SERVER_URL }}
+          NEXUS_DEFAULT_AGENT_KEY: ${{ secrets.NEXUS_DEFAULT_AGENT_KEY }}
+        run: |
+          $serverUrl = $env:NEXUS_DEFAULT_SERVER_URL
+          $agentKey  = $env:NEXUS_DEFAULT_AGENT_KEY
+          if ([string]::IsNullOrWhiteSpace($serverUrl) -and [string]::IsNullOrWhiteSpace($agentKey)) {
+            Write-Host "No NEXUS_DEFAULT_* secrets — building generic installer (config will be empty)"
+            '{}' | Out-File -FilePath installerDefaults.json -Encoding utf8
+          } else {
+            $payload = @{}
+            if (-not [string]::IsNullOrWhiteSpace($serverUrl)) { $payload.serverUrl = $serverUrl }
+            if (-not [string]::IsNullOrWhiteSpace($agentKey))  { $payload.agentKey  = $agentKey }
+            $payload | ConvertTo-Json -Depth 3 | Out-File -FilePath installerDefaults.json -Encoding utf8
+            Write-Host "Baked installer defaults (serverUrl present: $(-not [string]::IsNullOrWhiteSpace($serverUrl)), agentKey present: $(-not [string]::IsNullOrWhiteSpace($agentKey)))"
+          }
 
       - name: Build NSIS installer
         working-directory: agent

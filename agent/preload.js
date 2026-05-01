@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   getAgentInfo: () => ipcRenderer.invoke('get-agent-info'),
   updateServerUrl: (url) => ipcRenderer.invoke('update-server-url', url),
+  updateConnection: (payload) => ipcRenderer.invoke('update-connection', payload),
   onStatusUpdate: (callback) => ipcRenderer.on('status', (event, data) => callback(data)),
   onMetricsUpdate: (callback) => ipcRenderer.on('metrics', (event, data) => callback(data)),
   onChatMessage: (callback) => ipcRenderer.on('chat', (event, data) => callback(data)),
