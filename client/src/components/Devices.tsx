@@ -141,8 +141,8 @@ export default function Devices() {
           case 'host': return x.hostname.toLowerCase();
           case 'status': return x.status === 'online' ? 1 : 0;
           case 'cpu': return x.metrics?.cpu?.load ?? -1;
-          case 'mem': return x.metrics?.memory?.usage ?? -1;
-          case 'disk': return x.metrics?.disk?.usage ?? -1;
+          case 'mem': return x.metrics?.memory?.usedPercent ?? -1;
+          case 'disk': return x.metrics?.disk?.usedPercent ?? -1;
           case 'lat': return latencies[x.id] ?? -1;
           case 'last': return x.connectedAt ? new Date(x.connectedAt).getTime() : 0;
         }
@@ -183,7 +183,7 @@ export default function Devices() {
             {t('devices.title')}
           </h1>
           <p className="text-[13px] text-[color:var(--fg-muted)] mt-1">
-            {agents.length} {t('devices.subtitle')} · {onlineCount} online
+            {agents.length} {t('devices.connected')} · {onlineCount} online
           </p>
         </div>
 
@@ -281,8 +281,8 @@ function DeviceRow({
 }) {
   const isOnline = agent.status === 'online';
   const cpu = agent.metrics?.cpu?.load ?? 0;
-  const mem = agent.metrics?.memory?.usage ?? 0;
-  const disk = agent.metrics?.disk?.usage ?? 0;
+  const mem = agent.metrics?.memory?.usedPercent ?? 0;
+  const disk = agent.metrics?.disk?.usedPercent ?? 0;
   const sparkPath = useMemo(() => buildSparkPath(spark), [spark]);
   const latencyTone = latency == null ? '' : latency < 50 ? 'is-ok' : latency < 150 ? 'is-warn' : 'is-danger';
   const uptime = formatRelativeTime(agent.connectedAt, now);
@@ -313,11 +313,11 @@ function DeviceRow({
       <td>
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="nx-tag">{agent.platform || 'unknown'}</span>
-          {agent.metrics?.cpu?.cores != null && (
-            <span className="nx-tag">{agent.metrics.cpu.cores}c</span>
+          {agent.cpuCores != null && (
+            <span className="nx-tag">{agent.cpuCores}c</span>
           )}
-          {agent.metrics?.memory?.total != null && (
-            <span className="nx-tag">{(agent.metrics.memory.total / 1024 ** 3).toFixed(1)}gb</span>
+          {agent.totalMemory != null && (
+            <span className="nx-tag">{(agent.totalMemory / 1024 ** 3).toFixed(1)}gb</span>
           )}
         </div>
       </td>

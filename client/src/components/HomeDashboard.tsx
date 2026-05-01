@@ -141,7 +141,7 @@ export default function HomeDashboard() {
     const avgCpu =
       onlineAgents.reduce((acc, a) => acc + (a.metrics?.cpu?.load ?? 0), 0) / onlineAgents.length;
     const avgMem =
-      onlineAgents.reduce((acc, a) => acc + (a.metrics?.memory?.usage ?? 0), 0) / onlineAgents.length;
+      onlineAgents.reduce((acc, a) => acc + (a.metrics?.memory?.usedPercent ?? 0), 0) / onlineAgents.length;
     const totalNet =
       onlineAgents.reduce(
         (acc, a) => acc + (a.metrics?.network?.rxSec ?? 0) + (a.metrics?.network?.txSec ?? 0),
@@ -166,7 +166,7 @@ export default function HomeDashboard() {
   const fleetMem = useMemo(() => {
     const online = agents.filter((a) => a.status === 'online' && a.metrics);
     if (online.length === 0) return 0;
-    return online.reduce((acc, a) => acc + (a.metrics?.memory?.usage ?? 0), 0) / online.length;
+    return online.reduce((acc, a) => acc + (a.metrics?.memory?.usedPercent ?? 0), 0) / online.length;
   }, [agents]);
 
   const onlinePct = agents.length === 0 ? 0 : Math.round((onlineCount / agents.length) * 100);
@@ -277,8 +277,8 @@ export default function HomeDashboard() {
               <div className="nx-fleet-list">
                 {agents.slice(0, 6).map((agent) => {
                   const cpu = agent.metrics?.cpu?.load ?? 0;
-                  const mem = agent.metrics?.memory?.usage ?? 0;
-                  const disk = agent.metrics?.disk?.usage ?? 0;
+                  const mem = agent.metrics?.memory?.usedPercent ?? 0;
+                  const disk = agent.metrics?.disk?.usedPercent ?? 0;
                   const isOnline = agent.status === 'online';
                   return (
                     <button
