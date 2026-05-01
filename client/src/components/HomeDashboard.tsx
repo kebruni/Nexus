@@ -6,15 +6,16 @@ import {
   Activity,
   ArrowRight,
   BellRing,
+  CheckCircle2,
   Cpu,
   Download,
   Gauge,
   HardDrive,
   Laptop,
   MemoryStick,
+  Package,
   Server,
   Wifi,
-  Zap,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -186,17 +187,11 @@ export default function HomeDashboard() {
           <button onClick={() => navigate('/dashboard/devices')} className="nx-btn">
             <Server className="w-4 h-4" /> {t('home.goToDevices')}
           </button>
-          {installer?.available && (
-            <a
-              href={`${API_BASE}/agent/installer/download`}
-              className="nx-btn is-primary"
-              download
-            >
-              <Download className="w-4 h-4" /> {t('home.downloadAgent')}
-            </a>
-          )}
         </div>
       </header>
+
+      {/* Prominent agent download CTA */}
+      <InstallBanner installer={installer} t={t} />
 
       {/* KPI strip */}
       <section className="nx-kpi-strip">
@@ -362,24 +357,14 @@ export default function HomeDashboard() {
             onClick={() => navigate('/dashboard/devices')}
             accent="accent"
           />
-          {installer?.available ? (
-            <ActionCard
-              title={t('home.downloadAgent')}
-              sub={`${installer.fileName || 'agent'} · ${installer.size ? formatBytes(installer.size) : ''}`}
-              cta={t('home.downloadAgent')}
-              icon={<Download className="w-5 h-5" />}
-              onClick={() => (window.location.href = `${API_BASE}/agent/installer/download`)}
-              accent="ok"
-            />
-          ) : (
-            <ActionCard
-              title={t('home.downloadAgentUnavailable')}
-              sub="npm --prefix agent run build"
-              icon={<Zap className="w-5 h-5" />}
-              accent="warn"
-              cta={t('home.downloadAgentBuildHint')}
-            />
-          )}
+          <ActionCard
+            title={t('home.recentActivity')}
+            sub={`${events.length} recent events · ${alerts.length} active alerts`}
+            cta={t('home.viewAll')}
+            icon={<Activity className="w-5 h-5" />}
+            onClick={() => navigate('/dashboard/events')}
+            accent={alerts.length > 0 ? 'warn' : 'ok'}
+          />
         </div>
       </section>
     </div>
@@ -515,5 +500,83 @@ function ActionCard({
         </span>
       )}
     </button>
+  );
+}
+
+function InstallBanner({
+  installer,
+  t,
+}: {
+  installer: InstallerInfo | null;
+  t: (key: Parameters<ReturnType<typeof useLanguage>['t']>[0]) => string;
+}) {
+  const available = !!installer?.available;
+  return (
+    <section
+      className={`nx-install-banner ${available ? '' : 'is-unavailable'}`}
+      aria-label={t('home.downloadAgent')}
+    >
+      <div className="nx-install-banner-icon" aria-hidden>
+        <Package className="w-7 h-7" strokeWidth={1.8} />
+      </div>
+      <div className="nx-install-banner-body">
+        <div className="nx-install-banner-title">
+          <span>{t('home.downloadAgent')}</span>
+          {available ? (
+            <span className="nx-pill is-ok">
+              <CheckCircle2 className="w-3 h-3" /> Ready
+            </span>
+          ) : (
+            <span className="nx-pill is-warn">Building…</span>
+          )}
+          {available && installer?.version && (
+            <span className="nx-tag num-mono">v{installer.version}</span>
+          )}
+        </div>
+        <div className="nx-install-banner-meta">
+          {available ? (
+            <>
+              <span className="nx-install-banner-meta-item">
+                <HardDrive className="w-3 h-3" />
+                <span className="num-mono">
+                  {installer?.size ? formatBytes(installer.size) : '—'}
+                </span>
+              </span>
+              <span className="nx-install-banner-meta-item">
+                <span className="text-[color:var(--fg-dim)]">Windows x64 · NSIS installer</span>
+              </span>
+              {installer?.modified && (
+                <span className="nx-install-banner-meta-item">
+                  <span className="text-[color:var(--fg-dim)]">
+                    Updated {relativeTime(installer.modified)}
+                  </span>
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-[color:var(--fg-muted)]">
+              {t('home.downloadAgentUnavailable')}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="nx-install-banner-actions">
+        {available ? (
+          <a
+            href={`${API_BASE}/agent/installer/download`}
+            className="nx-btn is-primary"
+            download
+          >
+            <Download className="w-4 h-4" />
+            {t('home.downloadAgent')}
+          </a>
+        ) : (
+          <span className="nx-btn is-primary is-disabled" aria-disabled>
+            <Download className="w-4 h-4" />
+            {t('home.downloadAgent')}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
