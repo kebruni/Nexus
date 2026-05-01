@@ -1177,6 +1177,133 @@ body {
 .nx-action-card.is-warn .nx-action-cta { color: var(--warn); }
 
 /* ============================================================
+   Install banner — prominent agent download CTA
+   ============================================================ */
+
+.nx-install-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 20px;
+  background:
+    radial-gradient(900px 220px at 0% 0%, rgba(124,140,255,0.12), transparent 60%),
+    radial-gradient(700px 200px at 100% 100%, rgba(94,234,212,0.08), transparent 70%),
+    var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin-bottom: 14px;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+.nx-install-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(124,140,255,0.06), transparent 50%);
+  pointer-events: none;
+}
+.nx-install-banner:hover {
+  border-color: var(--border-strong);
+}
+.nx-install-banner.is-unavailable {
+  background: var(--bg-panel);
+}
+.nx-install-banner-icon {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent), #5EEAD4);
+  color: #fff;
+  box-shadow:
+    0 6px 18px -6px rgba(124,140,255,0.6),
+    0 0 0 1px rgba(255,255,255,0.08) inset;
+  flex-shrink: 0;
+}
+.nx-install-banner.is-unavailable .nx-install-banner-icon {
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  box-shadow: 0 0 0 1px var(--border) inset;
+}
+.nx-install-banner-body {
+  position: relative;
+  min-width: 0;
+}
+.nx-install-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg-strong);
+  letter-spacing: -0.01em;
+}
+.nx-install-banner-title .nx-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  height: auto;
+  line-height: 1.4;
+}
+.nx-install-banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.nx-install-banner-meta .num-mono {
+  color: var(--fg);
+}
+.nx-install-banner-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nx-install-banner-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.nx-install-banner .nx-btn.is-primary {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow:
+    0 4px 14px -4px rgba(124,140,255,0.55),
+    0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+.nx-install-banner .nx-btn[disabled],
+.nx-install-banner .nx-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  .nx-install-banner {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px 14px;
+  }
+  .nx-install-banner-actions {
+    grid-column: 1 / -1;
+  }
+  .nx-install-banner .nx-btn.is-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ============================================================
    Devices page
    ============================================================ */
 
