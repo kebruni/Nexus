@@ -137,6 +137,7 @@ export default function Layout({ onLogout }: LayoutProps) {
     const socket = getSocket();
     if (!socket) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocketConnected(socket.connected);
 
     const onAgentsList = (list: Agent[]) => setAgents(list);
@@ -172,6 +173,7 @@ export default function Layout({ onLogout }: LayoutProps) {
 
   // Close sidebar when route changes (mobile)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(false);
   }, [location.pathname]);
 

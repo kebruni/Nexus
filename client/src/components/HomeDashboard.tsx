@@ -148,6 +148,7 @@ export default function HomeDashboard() {
         0,
       ) / 1024;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCpuTrend((prev) => [...prev.slice(-29), avgCpu]);
     setMemTrend((prev) => [...prev.slice(-29), avgMem]);
     setNetTrend((prev) => [...prev.slice(-29), totalNet]);

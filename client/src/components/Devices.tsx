@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Cpu,
-  HardDrive,
   Search,
   ChevronUp,
   ChevronDown,
   Server,
-  MemoryStick,
-  Activity,
-  Wifi,
 } from 'lucide-react';
 import { getSocket } from '../api/socket';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -164,8 +159,8 @@ export default function Devices() {
     }
   };
 
-  const Th = ({ k, label, align }: { k: SortKey; label: string; align?: 'right' }) => (
-    <th onClick={() => setSort(k)} style={{ textAlign: align ?? 'left', cursor: 'pointer' }}>
+  const renderTh = (k: SortKey, label: string, align?: 'right') => (
+    <th key={k} onClick={() => setSort(k)} style={{ textAlign: align ?? 'left', cursor: 'pointer' }}>
       <span className="inline-flex items-center gap-1">
         {label}
         {sortKey === k &&
@@ -225,15 +220,15 @@ export default function Devices() {
           <table className="nx-grid">
             <thead>
               <tr>
-                <Th k="status" label="Status" />
-                <Th k="host" label="Host" />
+                {renderTh('status', 'Status')}
+                {renderTh('host', 'Host')}
                 <th>Platform</th>
-                <Th k="cpu" label="CPU" />
-                <Th k="mem" label="Memory" />
-                <Th k="disk" label="Disk" />
+                {renderTh('cpu', 'CPU')}
+                {renderTh('mem', 'Memory')}
+                {renderTh('disk', 'Disk')}
                 <th>Trend</th>
-                <Th k="lat" label="Lat" align="right" />
-                <Th k="last" label="Up" align="right" />
+                {renderTh('lat', 'Lat', 'right')}
+                {renderTh('last', 'Up', 'right')}
               </tr>
             </thead>
             <tbody>
