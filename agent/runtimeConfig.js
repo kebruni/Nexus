@@ -16,8 +16,10 @@
 const fs = require('fs');
 const defaults = require('./config');
 const { runtimePath } = require('./paths');
+const { loadInstallerDefaults } = require('./installerDefaults');
 
 const CONFIG_FILE = runtimePath('config.json');
+const INSTALLER_DEFAULTS = loadInstallerDefaults();
 
 function readPersistedConfig() {
   try {
@@ -57,11 +59,13 @@ function resolveConfig() {
       process.env.SERVER_URL ||
       readCliFlag('server') ||
       persisted.serverUrl ||
+      INSTALLER_DEFAULTS.serverUrl ||
       defaults.SERVER_URL,
     AGENT_KEY:
       process.env.AGENT_KEY ||
       readCliFlag('agent-key') ||
       persisted.agentKey ||
+      INSTALLER_DEFAULTS.agentKey ||
       defaults.AGENT_KEY,
     CONFIG_FILE,
   };

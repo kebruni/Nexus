@@ -319,6 +319,7 @@ ipcMain.handle('get-agent-info', async () => {
     hostname: os.hostname(),
     agentId: AGENT_ID,
     server: config.SERVER_URL,
+    agentKey: config.AGENT_KEY,
     configFile: CONFIG_FILE,
   };
 });
@@ -328,13 +329,47 @@ ipcMain.handle('update-server-url', async (_event, serverUrl) => {
     return { success: false, error: 'Invalid URL' };
   }
   writePersistedConfig({ serverUrl: serverUrl.replace(/\/+$/, '') });
-  dialog.showMessageBoxSync({
-    type: 'info',
-    title: 'Server URL updated',
-    message: 'Restart the agent for the change to take effect.',
-  });
+  reloadConnection();
   return { success: true };
 });
+
+ipcMain.handle('update-connection', async (_event, payload) => {
+  const updates = {};
+  if (payload && typeof payload.serverUrl === 'string' && payload.serverUrl.trim()) {
+    if (!/^https?:\/\//i.test(payload.serverUrl.trim())) {
+      return { success: false, error: 'Invalid URL — must start with http:// or https://' };
+    }
+    updates.serverUrl = payload.serverUrl.trim().replace(/\/+$/, '');
+  }
+  if (payload && typeof payload.agentKey === 'string' && payload.agentKey.trim()) {
+    updates.agentKey = payload.agentKey.trim();
+  }
+  if (Object.keys(updates).length === 0) {
+    return { success: false, error: 'Nothing to update' };
+  }
+  writePersistedConfig(updates);
+  reloadConnection();
+  return { success: true };
+});
+
+function reloadConnection() {
+  // Tear down existing socket, reload config, reconnect.
+  try {
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socket = null;
+    }
+    stopMetricsCollection();
+  } catch (err) {
+    console.error('[AGENT] reloadConnection teardown error:', err.message);
+  }
+  config = resolveConfig();
+  updateUI('status', { online: false, server: config.SERVER_URL });
+  startAgentLogic().catch((err) => {
+    console.error('[AGENT] reloadConnection start error:', err.message);
+  });
+}
 
 ipcMain.on('send-chat-message', (event, text) => {
   if (socket && socket.connected && text) {

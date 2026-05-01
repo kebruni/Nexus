@@ -42,6 +42,8 @@
       "preload.js",
       "config.js",
       "runtimeConfig.js",
+      "installerDefaults.js",
+      "installerDefaults.json",
       "paths.js",
       "metrics.js",
       "fileManager.js",
