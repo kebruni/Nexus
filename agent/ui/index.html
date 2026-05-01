@@ -627,6 +627,9 @@
       <label class="nx-modal-field">
         <span class="nx-modal-label">Agent key</span>
         <input id="conn-key" type="password" autocomplete="off" placeholder="shared agent secret" />
+        <span id="conn-key-hint" class="nx-modal-sub" style="margin-top:6px;margin-bottom:0;display:none">
+          A key is already configured. Leave blank to keep the existing one.
+        </span>
       </label>
       <div id="conn-error" class="nx-modal-error"></div>
       <div class="nx-modal-actions">
@@ -653,7 +656,7 @@
 
     let messageCounter = 0;
 
-    let agentInfo = { server: '', agentKey: '' };
+    let agentInfo = { server: '', agentKeyConfigured: false };
 
     // Init
     window.electronAPI.getAgentInfo().then(info => {
@@ -698,9 +701,18 @@
     const connCancelBtn = document.getElementById('conn-cancel');
     const connSaveBtn = document.getElementById('conn-save');
 
+    const connKeyHint = document.getElementById('conn-key-hint');
+
     function openConnModal() {
       connServerInput.value = agentInfo.server || 'https://';
-      connKeyInput.value = agentInfo.agentKey || '';
+      connKeyInput.value = '';
+      if (agentInfo.agentKeyConfigured) {
+        connKeyInput.placeholder = '•••••••• (leave blank to keep existing)';
+        connKeyHint.style.display = 'block';
+      } else {
+        connKeyInput.placeholder = 'shared agent secret';
+        connKeyHint.style.display = 'none';
+      }
       connErrorEl.classList.remove('is-visible');
       connErrorEl.innerText = '';
       connModal.classList.add('is-open');
@@ -721,10 +733,15 @@
     });
 
     connSaveBtn.addEventListener('click', async () => {
-      const serverVal = (connServerInput.value || '').trim();
+      const rawServer = (connServerInput.value || '').trim();
+      // If the field still equals the prefilled current URL (or is the bare
+      // "https://" placeholder) treat it as unchanged — only send what the
+      // user actually wants updated.
+      const serverChanged = rawServer && rawServer !== 'https://' && rawServer !== agentInfo.server;
+      const serverVal = serverChanged ? rawServer : '';
       const keyVal = (connKeyInput.value || '').trim();
       if (!serverVal && !keyVal) {
-        connErrorEl.innerText = 'Provide at least one field to update.';
+        connErrorEl.innerText = 'Nothing to update — change the URL or enter a new key.';
         connErrorEl.classList.add('is-visible');
         return;
       }
@@ -745,7 +762,11 @@
           connErrorEl.classList.add('is-visible');
           return;
         }
-        agentInfo = { ...agentInfo, server: serverVal || agentInfo.server, agentKey: keyVal || agentInfo.agentKey };
+        agentInfo = {
+          ...agentInfo,
+          server: serverVal || agentInfo.server,
+          agentKeyConfigured: agentInfo.agentKeyConfigured || !!keyVal,
+        };
         closeConnModal();
       } finally {
         connSaveBtn.disabled = false;

@@ -17,6 +17,7 @@ let tray;
 let socket;
 let metricsInterval;
 let config = resolveConfig();
+let connectionGeneration = 0;
 
 // Agent ID lives in the user-writable runtime dir so it survives reinstalls
 // and works inside Program Files (which is read-only when packaged).
@@ -148,10 +149,19 @@ app.on('window-all-closed', () => {
 // ── Агентская логика ──────────────────────────────────
 
 async function startAgentLogic() {
+  // Capture the generation at entry. If reloadConnection() bumps it while
+  // we're awaiting getSystemInfo(), this start is stale and we abort
+  // before opening a second socket.
+  const myGeneration = connectionGeneration;
   console.log(`[AGENT] Connecting to: ${config.SERVER_URL}/agent`);
   const systemInfo = await getSystemInfo();
 
-  socket = io(`${config.SERVER_URL}/agent`, {
+  if (myGeneration !== connectionGeneration) {
+    console.log('[AGENT] startAgentLogic aborted — superseded by newer reload');
+    return;
+  }
+
+  const localSocket = io(`${config.SERVER_URL}/agent`, {
     auth: {
       agentKey: config.AGENT_KEY,
       agentId: AGENT_ID,
@@ -166,6 +176,13 @@ async function startAgentLogic() {
     randomizationFactor: 0.5,
     timeout: 20000
   });
+
+  if (myGeneration !== connectionGeneration) {
+    // Another reload landed between the await and io(); discard this socket.
+    try { localSocket.removeAllListeners(); localSocket.disconnect(); } catch (_) {}
+    return;
+  }
+  socket = localSocket;
 
   socket.on('connect', () => {
     console.log('[AGENT] Connected to server!');
@@ -319,7 +336,10 @@ ipcMain.handle('get-agent-info', async () => {
     hostname: os.hostname(),
     agentId: AGENT_ID,
     server: config.SERVER_URL,
-    agentKey: config.AGENT_KEY,
+    // Never send the raw key to the renderer. The UI only needs to know
+    // whether one is configured so it can render the "leave blank to keep"
+    // hint in the connection settings modal.
+    agentKeyConfigured: !!config.AGENT_KEY && config.AGENT_KEY !== 'agent-connection-key',
     configFile: CONFIG_FILE,
   };
 });
@@ -353,7 +373,10 @@ ipcMain.handle('update-connection', async (_event, payload) => {
 });
 
 function reloadConnection() {
-  // Tear down existing socket, reload config, reconnect.
+  // Bump the generation so any in-flight startAgentLogic() bails out
+  // before it opens a duplicate socket, then tear down the current socket
+  // and start a fresh one.
+  connectionGeneration += 1;
   try {
     if (socket) {
       socket.removeAllListeners();
