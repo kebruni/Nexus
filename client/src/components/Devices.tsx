@@ -5,6 +5,11 @@ import {
   ChevronUp,
   ChevronDown,
   Server,
+  TerminalSquare,
+  FolderOpen,
+  Monitor,
+  ExternalLink,
+  Download,
 } from 'lucide-react';
 import { getSocket } from '../api/socket';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -229,6 +234,7 @@ export default function Devices() {
                 <th>{t('devices.colTrend')}</th>
                 {renderTh('lat', t('devices.colLat'), 'right')}
                 {renderTh('last', t('devices.colUp'), 'right')}
+                <th style={{ width: 156, textAlign: 'right' }} aria-label="actions" />
               </tr>
             </thead>
             <tbody>
@@ -240,15 +246,31 @@ export default function Devices() {
                   spark={sparkDataByAgent[agent.id] || []}
                   now={now}
                   onClick={() => navigate(`/dashboard/computer/${agent.id}`)}
+                  navigate={navigate}
+                  t={t}
                 />
               ))}
               {sorted.length === 0 && (
-                <tr>
-                  <td colSpan={9}>
-                    <div className="nx-empty" style={{ padding: '38px 12px' }}>
-                      <Server className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
-                      <span>{t('devices.noDevices')}</span>
-                      <span className="text-[12px] text-[color:var(--fg-dim)] mt-1">{t('devices.startAgent')}</span>
+                <tr className="nx-grid-empty-row">
+                  <td colSpan={10}>
+                    <div className="nx-empty-rich">
+                      <div className="nx-empty-rich-icon">
+                        <Server className="w-7 h-7" strokeWidth={1.6} />
+                      </div>
+                      <div className="nx-empty-rich-body">
+                        <h3 className="nx-empty-rich-title">{t('devices.firstRunTitle')}</h3>
+                        <p className="nx-empty-rich-desc">{t('devices.firstRunDesc')}</p>
+                        <div className="nx-empty-rich-actions">
+                          <a
+                            href={`${API_BASE}/agent/installer/download`}
+                            className="nx-btn is-primary"
+                            download
+                          >
+                            <Download className="w-4 h-4" />
+                            {t('devices.downloadCta')}
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -267,12 +289,16 @@ function DeviceRow({
   spark,
   now,
   onClick,
+  navigate,
+  t,
 }: {
   agent: Agent;
   latency?: number;
   spark: number[];
   now: number;
   onClick: () => void;
+  navigate: (path: string) => void;
+  t: ReturnType<typeof useLanguage>['t'];
 }) {
   const isOnline = agent.status === 'online';
   const cpu = agent.metrics?.cpu?.load ?? 0;
@@ -344,6 +370,49 @@ function DeviceRow({
       </td>
       <td className="num-mono text-right text-[color:var(--fg-muted)]" style={{ width: 64 }}>
         {isOnline ? uptime : '—'}
+      </td>
+      <td className="nx-row-actions" style={{ width: 156, textAlign: 'right' }}>
+        <div className="nx-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actShell') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actShell')}
+            onClick={() => navigate(`/dashboard/terminal?agent=${agent.id}`)}
+          >
+            <TerminalSquare className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actFiles') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actFiles')}
+            onClick={() => navigate(`/dashboard/files?agent=${agent.id}`)}
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actRemote') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actRemote')}
+            onClick={() => navigate(`/dashboard/remote?agent=${agent.id}`)}
+          >
+            <Monitor className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn is-primary"
+            title={t('devices.actDetails')}
+            aria-label={t('devices.actDetails')}
+            onClick={onClick}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        </div>
       </td>
     </tr>
   );

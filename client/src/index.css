@@ -1048,6 +1048,60 @@ body {
   font-size: 13px;
 }
 
+/* Rich empty-state with icon, headline, description, CTA */
+.nx-empty-rich {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+  gap: 14px;
+}
+.nx-empty-rich-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+}
+.nx-empty-rich-body {
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.nx-empty-rich-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg-strong);
+  letter-spacing: -0.01em;
+}
+.nx-empty-rich-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+.nx-empty-rich-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+.nx-grid-empty-row td {
+  padding: 0 !important;
+  background: transparent;
+}
+.nx-grid-empty-row:hover td {
+  background: transparent !important;
+}
+
 /* Fleet load list ------------------------------------------ */
 .nx-fleet-list {
   display: flex;
@@ -1308,6 +1362,156 @@ body {
 }
 
 /* ============================================================
+   Onboarding card (first-run, when no agents connected)
+   ============================================================ */
+.nx-onboard {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  padding: 18px 22px 20px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 100%, color-mix(in oklab, var(--info) 12%, transparent), transparent 50%),
+    var(--bg-panel);
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, var(--border));
+  box-shadow: 0 8px 28px -10px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.nx-onboard-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nx-onboard-dismiss:hover {
+  color: var(--fg-strong);
+  border-color: var(--border-strong);
+}
+.nx-onboard-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding-right: 28px;
+}
+.nx-onboard-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 36%, transparent);
+}
+.nx-onboard-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg-strong);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.nx-onboard-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.45;
+}
+.nx-onboard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nx-onboard-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+}
+.nx-onboard-step-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+}
+.nx-onboard-step-num {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg-app);
+  font-size: 9px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0;
+  border: 1.5px solid var(--bg-panel);
+}
+.nx-onboard-step-body {
+  min-width: 0;
+}
+.nx-onboard-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-strong);
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+.nx-onboard-step-desc {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.42;
+}
+@media (max-width: 900px) {
+  .nx-onboard-steps {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .nx-onboard {
+    padding: 14px 14px 16px;
+  }
+  .nx-onboard-head {
+    gap: 10px;
+  }
+  .nx-onboard-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .nx-onboard-title {
+    font-size: 15px;
+  }
+}
+
+/* ============================================================
    Devices page
    ============================================================ */
 
@@ -1390,6 +1594,44 @@ body {
   color: var(--accent);
 }
 
+/* Inline quick-action buttons in Devices row -------------- */
+.nx-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.nx-act-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.nx-act-btn:hover:not(:disabled) {
+  color: var(--fg-strong);
+  border-color: var(--border-strong);
+  background: var(--bg-panel);
+}
+.nx-act-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.nx-act-btn.is-primary {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 32%, transparent);
+  color: var(--accent);
+}
+.nx-act-btn.is-primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 26%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+}
+
 /* Tag (small label e.g. linux / windows / 1c / 0.9 GB) ----- */
 .nx-tag {
   display: inline-flex;
@@ -1466,7 +1708,8 @@ body {
       "tags   tags    tags"
       "cpu    cpu     cpu"
       "mem    mem     mem"
-      "disk   disk    disk";
+      "disk   disk    disk"
+      "actions actions actions";
     align-items: center;
     gap: 8px 10px;
     padding: 12px 12px;
@@ -1496,6 +1739,15 @@ body {
     font-size: 11px;
     color: var(--fg-muted);
   }
+  .nx-grid tbody td.nx-row-actions {
+    grid-area: actions;
+    text-align: left !important;
+    margin-top: 4px;
+    border-top: 1px dashed var(--divider) !important;
+    padding-top: 8px !important;
+  }
+  .nx-grid tbody td.nx-row-actions .nx-actions { width: 100%; justify-content: space-between; }
+  .nx-grid tbody td.nx-row-actions .nx-act-btn { flex: 1; height: 32px; }
   /* Bar cells get a leading label (data-label="CPU"/"MEM"/"DISK") */
   .nx-grid tbody td[data-label] {
     display: flex !important;

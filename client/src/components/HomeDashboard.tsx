@@ -14,8 +14,12 @@ import {
   Laptop,
   MemoryStick,
   Package,
+  PlayCircle,
+  Plug,
   Server,
+  Sparkles,
   Wifi,
+  X,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -79,6 +83,8 @@ function relativeTime(ts: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+const ONBOARD_DISMISSED_KEY = 'nx-onboard-dismissed';
+
 export default function HomeDashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -87,8 +93,24 @@ export default function HomeDashboard() {
   const [cpuTrend, setCpuTrend] = useState<number[]>([]);
   const [memTrend, setMemTrend] = useState<number[]>([]);
   const [netTrend, setNetTrend] = useState<number[]>([]);
+  const [onboardDismissed, setOnboardDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(ONBOARD_DISMISSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
   const { t } = useLanguage();
+
+  const dismissOnboard = () => {
+    try {
+      localStorage.setItem(ONBOARD_DISMISSED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setOnboardDismissed(true);
+  };
 
   useEffect(() => {
     fetch(`${API_BASE}/agent/installer/info`)
@@ -189,6 +211,11 @@ export default function HomeDashboard() {
           </button>
         </div>
       </header>
+
+      {/* First-run onboarding (auto-hides once an agent connects) */}
+      {agents.length === 0 && !onboardDismissed && (
+        <OnboardingCard t={t} onDismiss={dismissOnboard} />
+      )}
 
       {/* Prominent agent download CTA */}
       <InstallBanner installer={installer} t={t} />
@@ -577,6 +604,68 @@ function InstallBanner({
           </span>
         )}
       </div>
+    </section>
+  );
+}
+
+function OnboardingCard({
+  t,
+  onDismiss,
+}: {
+  t: (key: Parameters<ReturnType<typeof useLanguage>['t']>[0]) => string;
+  onDismiss: () => void;
+}) {
+  return (
+    <section className="nx-onboard" aria-label={t('onboard.title')}>
+      <button
+        className="nx-onboard-dismiss"
+        onClick={onDismiss}
+        aria-label={t('onboard.dismiss')}
+        type="button"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+      <div className="nx-onboard-head">
+        <div className="nx-onboard-icon" aria-hidden>
+          <Sparkles className="w-5 h-5" strokeWidth={1.8} />
+        </div>
+        <div>
+          <h2 className="nx-onboard-title">{t('onboard.title')}</h2>
+          <p className="nx-onboard-subtitle">{t('onboard.subtitle')}</p>
+        </div>
+      </div>
+      <ol className="nx-onboard-steps">
+        <li className="nx-onboard-step">
+          <div className="nx-onboard-step-icon">
+            <Download className="w-4 h-4" />
+            <span className="nx-onboard-step-num">1</span>
+          </div>
+          <div className="nx-onboard-step-body">
+            <div className="nx-onboard-step-title">{t('onboard.step1Title')}</div>
+            <div className="nx-onboard-step-desc">{t('onboard.step1Desc')}</div>
+          </div>
+        </li>
+        <li className="nx-onboard-step">
+          <div className="nx-onboard-step-icon">
+            <PlayCircle className="w-4 h-4" />
+            <span className="nx-onboard-step-num">2</span>
+          </div>
+          <div className="nx-onboard-step-body">
+            <div className="nx-onboard-step-title">{t('onboard.step2Title')}</div>
+            <div className="nx-onboard-step-desc">{t('onboard.step2Desc')}</div>
+          </div>
+        </li>
+        <li className="nx-onboard-step">
+          <div className="nx-onboard-step-icon">
+            <Plug className="w-4 h-4" />
+            <span className="nx-onboard-step-num">3</span>
+          </div>
+          <div className="nx-onboard-step-body">
+            <div className="nx-onboard-step-title">{t('onboard.step3Title')}</div>
+            <div className="nx-onboard-step-desc">{t('onboard.step3Desc')}</div>
+          </div>
+        </li>
+      </ol>
     </section>
   );
 }

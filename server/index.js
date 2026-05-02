@@ -114,9 +114,47 @@ if (HAS_CLIENT_DIST) {
 
 // ── REST API Routes ───────────────────────────────────────
 
-// Health check
+// Health check — extended to expose enough to drive an external uptime probe
+// (UptimeRobot / BetterStack) without requiring auth. We only return non-sensitive
+// summary counts; no config, no secrets, no user data.
+const SERVER_STARTED_AT = new Date().toISOString();
+let SERVER_VERSION = 'dev';
+try {
+  // Avoid a top-level require so the healthcheck never throws if package.json moves.
+  const pkg = require(path.join(__dirname, '..', 'package.json'));
+  if (pkg && pkg.version) SERVER_VERSION = pkg.version;
+} catch (_) {
+  /* ignore */
+}
+
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+  let agentTotal = 0;
+  let agentOnline = 0;
+  let storeOk = true;
+  try {
+    const allAgents = store.getAllAgents();
+    agentTotal = allAgents.length;
+    agentOnline = allAgents.filter((a) => a.status === 'online').length;
+  } catch (err) {
+    storeOk = false;
+  }
+  const memInfo = process.memoryUsage();
+  res.json({
+    status: storeOk ? 'ok' : 'degraded',
+    uptimeSec: Math.round(process.uptime()),
+    startedAt: SERVER_STARTED_AT,
+    version: SERVER_VERSION,
+    nodeVersion: process.version,
+    agents: {
+      total: agentTotal,
+      online: agentOnline,
+    },
+    memoryMB: {
+      rss: Math.round(memInfo.rss / 1024 / 1024),
+      heapUsed: Math.round(memInfo.heapUsed / 1024 / 1024),
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ── Agent installer download ──────────────────────────────

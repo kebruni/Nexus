@@ -85,6 +85,50 @@ export const translations = {
   'home.viewAll': { en: 'View all', ru: 'Смотреть все', kz: 'Барлығын көру' },
   'home.noActivity': { en: 'No recent activity', ru: 'Нет недавних действий', kz: 'Соңғы әрекеттер жоқ' },
 
+  // ── Onboarding (first-run, when no agents connected) ──
+  'onboard.title': {
+    en: 'Welcome to Nexus',
+    ru: 'Добро пожаловать в Nexus',
+    kz: 'Nexus-қа қош келдіңіз',
+  },
+  'onboard.subtitle': {
+    en: "Let's connect your first computer in 3 steps. The whole flow takes about a minute.",
+    ru: 'Подключим первый компьютер за 3 шага. Весь процесс занимает около минуты.',
+    kz: 'Алғашқы компьютеріңізді 3 қадаммен қосамыз. Барлық үдеріс шамамен бір минут.',
+  },
+  'onboard.step1Title': { en: 'Download the agent', ru: 'Скачайте агент', kz: 'Агентті жүктеңіз' },
+  'onboard.step1Desc': {
+    en: 'Click the big blue button below — gets you a 78 MB Windows installer.',
+    ru: 'Нажмите большую синюю кнопку ниже — получите установщик для Windows (78 МБ).',
+    kz: 'Төмендегі үлкен көк түймені басыңыз — Windows үшін 78 МБ орнатушы.',
+  },
+  'onboard.step2Title': {
+    en: 'Run it on the target PC',
+    ru: 'Запустите на нужном ПК',
+    kz: 'Қажетті ДК-де іске қосыңыз',
+  },
+  'onboard.step2Desc': {
+    en: 'Double-click the installer like any normal app. No keys or URLs to copy — already pre-configured.',
+    ru: 'Запустите установщик двойным кликом, как обычное приложение. Сервер и ключ уже зашиты внутри.',
+    kz: 'Орнатушыны кәдімгі қолданба сияқты екі рет басыңыз. Сервер мен кілт ішіне жазылған.',
+  },
+  'onboard.step3Title': {
+    en: 'Wait for it to appear',
+    ru: 'Дождитесь появления',
+    kz: 'Пайда болуын күтіңіз',
+  },
+  'onboard.step3Desc': {
+    en: "Within seconds the device will show up here automatically. No refresh needed.",
+    ru: 'Через несколько секунд устройство появится здесь автоматически. Обновлять страницу не нужно.',
+    kz: 'Бірнеше секундтан кейін құрылғы осында автоматты түрде пайда болады. Бетті жаңартудың қажеті жоқ.',
+  },
+  'onboard.dismiss': { en: 'Hide', ru: 'Скрыть', kz: 'Жасыру' },
+  'onboard.helpLink': {
+    en: 'Need help? See setup guide',
+    ru: 'Нужна помощь? Откройте руководство',
+    kz: 'Көмек керек пе? Нұсқаулықты ашыңыз',
+  },
+
   // ── Devices ──
   'devices.title': { en: 'Devices', ru: 'Устройства', kz: 'Құрылғылар' },
   'devices.eyebrow': { en: 'Inventory', ru: 'Инвентарь', kz: 'Тізім' },
@@ -108,6 +152,26 @@ export const translations = {
   'devices.startAgent': { en: 'Start the agent on a remote machine', ru: 'Запустите агент на удалённом компьютере', kz: 'Қашықтағы компьютерде агентті іске қосыңыз' },
   'devices.ready': { en: 'Ready', ru: 'Готово', kz: 'Дайын' },
   'devices.offline': { en: 'Offline', ru: 'Не в сети', kz: 'Офлайн' },
+  'devices.firstRunTitle': {
+    en: 'No devices connected yet',
+    ru: 'Устройства ещё не подключены',
+    kz: 'Әзірге құрылғылар қосылмаған',
+  },
+  'devices.firstRunDesc': {
+    en: 'Download the agent installer and run it on any Windows PC. Once installed it will appear here automatically.',
+    ru: 'Скачайте установщик агента и запустите на любом ПК с Windows. После установки устройство появится здесь автоматически.',
+    kz: 'Агент орнатушысын жүктеп, кез келген Windows ДК-сінде іске қосыңыз. Орнатылғаннан кейін құрылғы осы жерде автоматты түрде пайда болады.',
+  },
+  'devices.downloadCta': { en: 'Download Agent', ru: 'Скачать агент', kz: 'Агентті жүктеу' },
+  'devices.actShell': { en: 'Open shell', ru: 'Открыть терминал', kz: 'Терминалды ашу' },
+  'devices.actFiles': { en: 'Files', ru: 'Файлы', kz: 'Файлдар' },
+  'devices.actRemote': { en: 'Remote desktop', ru: 'Удалённый стол', kz: 'Қашықтағы үстел' },
+  'devices.actDetails': { en: 'Details', ru: 'Подробнее', kz: 'Толығырақ' },
+  'devices.actOfflineHint': {
+    en: 'Device is offline',
+    ru: 'Устройство не в сети',
+    kz: 'Құрылғы желіде жоқ',
+  },
 
   // ── File Explorer ──
   'files.title': { en: 'File Manager', ru: 'Файловый менеджер', kz: 'Файл менеджері' },
