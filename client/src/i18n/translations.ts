@@ -173,6 +173,108 @@ export const translations = {
     kz: 'Құрылғы желіде жоқ',
   },
 
+  // ── User dropdown menu (topbar) ──
+  'userMenu.changePassword': { en: 'Change password', ru: 'Сменить пароль', kz: 'Құпиясөзді өзгерту' },
+  'userMenu.themeDark': { en: 'Switch to dark theme', ru: 'Включить тёмную тему', kz: 'Қара тақырыпқа ауысу' },
+  'userMenu.themeLight': { en: 'Switch to light theme', ru: 'Включить светлую тему', kz: 'Ашық тақырыпқа ауысу' },
+  'userMenu.logout': { en: 'Sign out', ru: 'Выйти', kz: 'Шығу' },
+
+  // ── Roles ──
+  'role.admin': { en: 'Administrator', ru: 'Администратор', kz: 'Әкімші' },
+  'role.operator': { en: 'Operator', ru: 'Оператор', kz: 'Оператор' },
+  'role.viewer': { en: 'Viewer', ru: 'Наблюдатель', kz: 'Бақылаушы' },
+
+  // ── Common modal/form labels ──
+  'layout.cancel': { en: 'Cancel', ru: 'Отмена', kz: 'Бас тарту' },
+  'layout.close': { en: 'Close', ru: 'Закрыть', kz: 'Жабу' },
+
+  // ── Change-password dialog ──
+  'changePwd.title': { en: 'Change password', ru: 'Сменить пароль', kz: 'Құпиясөзді өзгерту' },
+  'changePwd.descPrefix': { en: 'Update the password for', ru: 'Обновите пароль для', kz: 'Құпиясөзді жаңарту:' },
+  'changePwd.current': { en: 'Current password', ru: 'Текущий пароль', kz: 'Ағымдағы құпиясөз' },
+  'changePwd.next': { en: 'New password', ru: 'Новый пароль', kz: 'Жаңа құпиясөз' },
+  'changePwd.confirm': { en: 'Confirm new password', ru: 'Подтвердите новый пароль', kz: 'Жаңа құпиясөзді қайталаңыз' },
+  'changePwd.hint': {
+    en: 'At least 8 characters. Use a mix of letters, numbers and symbols.',
+    ru: 'Минимум 8 символов. Используйте буквы, цифры и спецсимволы.',
+    kz: 'Кемінде 8 таңба. Әріп, сан және арнайы символ қолданыңыз.',
+  },
+  'changePwd.errTooShort': {
+    en: 'Password must be at least 8 characters.',
+    ru: 'Пароль должен быть не короче 8 символов.',
+    kz: 'Құпиясөз кемінде 8 таңбадан тұруы керек.',
+  },
+  'changePwd.errMismatch': {
+    en: 'Passwords do not match.',
+    ru: 'Пароли не совпадают.',
+    kz: 'Құпиясөздер сәйкес келмейді.',
+  },
+  'changePwd.errSame': {
+    en: 'New password must differ from the current one.',
+    ru: 'Новый пароль должен отличаться от текущего.',
+    kz: 'Жаңа құпиясөз ағымдағысынан өзгеше болуы керек.',
+  },
+  'changePwd.save': { en: 'Update password', ru: 'Обновить пароль', kz: 'Құпиясөзді жаңарту' },
+  'changePwd.saving': { en: 'Updating…', ru: 'Обновляем…', kz: 'Жаңартылуда…' },
+  'changePwd.successTitle': { en: 'Password updated', ru: 'Пароль обновлён', kz: 'Құпиясөз жаңартылды' },
+  'changePwd.successDesc': {
+    en: 'Use the new password the next time you sign in.',
+    ru: 'Используйте новый пароль при следующем входе.',
+    kz: 'Келесі кіру кезінде жаңа құпиясөзді қолданыңыз.',
+  },
+
+  // ── Toast confirmation strings (success/failure) ──
+  'users.createdOk': {
+    en: 'User {username} created',
+    ru: 'Пользователь {username} создан',
+    kz: '{username} пайдаланушысы жасалды',
+  },
+  'users.deletedOk': {
+    en: 'User {username} deleted',
+    ru: 'Пользователь {username} удалён',
+    kz: '{username} пайдаланушысы жойылды',
+  },
+  'users.roleChangedOk': {
+    en: 'Role for {username} set to {role}',
+    ru: 'Роль для {username} изменена на {role}',
+    kz: '{username} рөлі {role} болып орнатылды',
+  },
+  'webhooks.createdOk': {
+    en: 'Webhook "{name}" created',
+    ru: 'Вебхук «{name}» создан',
+    kz: '«{name}» вебхугі жасалды',
+  },
+  'webhooks.deletedOk': {
+    en: 'Webhook "{name}" deleted',
+    ru: 'Вебхук «{name}» удалён',
+    kz: '«{name}» вебхугі жойылды',
+  },
+  'webhooks.enabledOk': {
+    en: 'Webhook "{name}" enabled',
+    ru: 'Вебхук «{name}» включён',
+    kz: '«{name}» вебхугі қосылды',
+  },
+  'webhooks.disabledOk': {
+    en: 'Webhook "{name}" disabled',
+    ru: 'Вебхук «{name}» отключён',
+    kz: '«{name}» вебхугі өшірілді',
+  },
+  'groups.createdOk': {
+    en: 'Group "{name}" created',
+    ru: 'Группа «{name}» создана',
+    kz: '«{name}» тобы жасалды',
+  },
+  'groups.deletedOk': {
+    en: 'Group "{name}" deleted',
+    ru: 'Группа «{name}» удалена',
+    kz: '«{name}» тобы жойылды',
+  },
+  'groups.bulkDispatched': {
+    en: '{sent}/{total} commands sent to "{group}"',
+    ru: 'Отправлено {sent}/{total} команд в «{group}»',
+    kz: '«{group}» тобына {sent}/{total} команда жіберілді',
+  },
+
   // ── File Explorer ──
   'files.title': { en: 'File Manager', ru: 'Файловый менеджер', kz: 'Файл менеджері' },
   'files.devicesAvailable': { en: 'devices available', ru: 'устройств доступно', kz: 'құрылғы қол жетімді' },
@@ -434,6 +536,64 @@ export const translations = {
   // ── Lock / Alarm ──
   'detail.lock': { en: 'Lock Screen', ru: 'Заблокировать', kz: 'Экранды құлыптау' },
   'detail.alarm': { en: 'Sound Alarm', ru: 'Сигнализация', kz: 'Дыбыстық сигнал' },
+
+  // ── Rich empty-state titles/descriptions per page ──
+  'events.emptyTitle': { en: 'No events yet', ru: 'Событий пока нет', kz: 'Әзірге оқиғалар жоқ' },
+  'events.emptyDesc': {
+    en: 'Connect an agent or perform an action — every system event will appear here.',
+    ru: 'Подключи агента или выполни действие — все системные события появятся здесь.',
+    kz: 'Агент қосыңыз немесе әрекет жасаңыз — барлық жүйелік оқиғалар осында пайда болады.',
+  },
+  'events.emptyFilteredTitle': { en: 'No events match your filter', ru: 'По фильтру ничего не найдено', kz: 'Сүзгі бойынша ештеңе табылмады' },
+  'events.emptyFilteredDesc': {
+    en: 'Try a different keyword, or clear the filter to see all events.',
+    ru: 'Попробуйте другое слово или очистите фильтр.',
+    kz: 'Басқа кілт сөзді қолданыңыз немесе сүзгіні тазалаңыз.',
+  },
+  'events.clearFilter': { en: 'Clear filter', ru: 'Очистить фильтр', kz: 'Сүзгіні тазалау' },
+
+  'alerts.emptyAlertsTitle': { en: 'No alerts firing', ru: 'Активных уведомлений нет', kz: 'Белсенді ескертулер жоқ' },
+  'alerts.emptyAlertsDesc': {
+    en: 'When an alert rule triggers, the notification will land here.',
+    ru: 'Когда сработает правило, уведомление появится здесь.',
+    kz: 'Ережелер іске қосылғанда, ескертулер осында пайда болады.',
+  },
+  'alerts.viewRules': { en: 'View alert rules', ru: 'Открыть правила', kz: 'Ережелерді ашу' },
+  'alerts.emptyRulesTitle': { en: 'No alert rules yet', ru: 'Правил пока нет', kz: 'Әзірге ережелер жоқ' },
+  'alerts.emptyRulesDesc': {
+    en: 'Create a rule to be notified when CPU, memory, or disk usage crosses a threshold.',
+    ru: 'Создайте правило, чтобы получать уведомления при превышении порогов CPU/памяти/диска.',
+    kz: 'CPU, жад немесе диск шегінен өткенде хабарландыру алу үшін ереже жасаңыз.',
+  },
+
+  'scripts.emptyTitle': { en: 'No saved scripts', ru: 'Сохранённых скриптов нет', kz: 'Сақталған скрипттер жоқ' },
+  'scripts.emptyDesc': {
+    en: 'Save commands you run often as a reusable script and execute them on any device.',
+    ru: 'Сохрани часто используемые команды как скрипт и запускай их на любом устройстве.',
+    kz: 'Жиі қолданатын командаларды скрипт ретінде сақтап, кез келген құрылғыда орындаңыз.',
+  },
+  'scripts.create': { en: 'New script', ru: 'Новый скрипт', kz: 'Жаңа скрипт' },
+
+  'webhooks.emptyTitle': { en: 'No notification channels', ru: 'Каналов уведомлений нет', kz: 'Хабарландыру арналары жоқ' },
+  'webhooks.emptyDesc': {
+    en: 'Connect Telegram, Discord or Slack to receive alerts in your team chat.',
+    ru: 'Подключи Telegram, Discord или Slack — алерты будут приходить прямо в чат команды.',
+    kz: 'Telegram, Discord немесе Slack қосыңыз — ескертулер тікелей чатқа келеді.',
+  },
+
+  'users.emptyTitle': { en: 'No users yet', ru: 'Пользователей пока нет', kz: 'Әзірге пайдаланушы жоқ' },
+  'users.emptyDesc': {
+    en: 'Invite operators and viewers to grant scoped access to the control hub.',
+    ru: 'Создавайте операторов и наблюдателей, чтобы предоставить ограниченный доступ.',
+    kz: 'Шектелген қолжетімділік беру үшін операторлар мен бақылаушыларды шақырыңыз.',
+  },
+
+  'groups.emptyTitle': { en: 'No groups yet', ru: 'Групп ещё нет', kz: 'Әзірге топтар жоқ' },
+  'groups.emptyDesc': {
+    en: 'Group devices by department, location or purpose to run bulk actions in one click.',
+    ru: 'Группируй устройства по отделам/локации, чтобы запускать команды на всех сразу.',
+    kz: 'Барлық құрылғыларға бір рет әрекет жасау үшін оларды бөлім/орын бойынша топтаңыз.',
+  },
 
   // ── Common ──
   'common.loading': { en: 'Loading...', ru: 'Загрузка...', kz: 'Жүктелуде...' },

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import EmptyState from './EmptyState';
 
 const API_BASE = '/api';
 
@@ -154,12 +155,21 @@ export default function Alerts() {
       {activeTab === 'alerts' && (
         <div className="space-y-2">
           {alerts.length === 0 ? (
-            <div className={`${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200'} border border-dashed rounded-2xl py-16 flex flex-col items-center justify-center`}>
-              <div className={`w-14 h-14 ${isDark ? 'bg-zinc-900' : 'bg-gray-100'} rounded-full flex items-center justify-center mb-4`}>
-                <Bell className={`w-6 h-6 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`} />
-              </div>
-              <p className={`font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{t('alerts.noRules')}</p>
-              <p className={`text-sm mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{t('alerts.createFirst')}</p>
+            <div className="nx-empty-panel">
+              <EmptyState
+                icon={Bell}
+                title={t('alerts.emptyAlertsTitle')}
+                description={t('alerts.emptyAlertsDesc')}
+                action={
+                  <button
+                    type="button"
+                    className="nx-btn"
+                    onClick={() => setActiveTab('rules')}
+                  >
+                    {t('alerts.viewRules')}
+                  </button>
+                }
+              />
             </div>
           ) : (
             alerts.map((alert) => (
@@ -305,12 +315,12 @@ export default function Alerts() {
 
           {/* Rules List */}
           {rules.length === 0 ? (
-            <div className={`${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200'} border border-dashed rounded-2xl py-16 flex flex-col items-center justify-center`}>
-              <div className={`w-14 h-14 ${isDark ? 'bg-zinc-900' : 'bg-gray-100'} rounded-full flex items-center justify-center mb-4`}>
-                <AlertTriangle className={`w-6 h-6 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`} />
-              </div>
-              <p className={`font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{t('alerts.noRules')}</p>
-              <p className={`text-sm mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{t('alerts.createFirst')}</p>
+            <div className="nx-empty-panel">
+              <EmptyState
+                icon={AlertTriangle}
+                title={t('alerts.emptyRulesTitle')}
+                description={t('alerts.emptyRulesDesc')}
+              />
             </div>
           ) : (
             <div className="space-y-2">

@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
-import { useTheme } from './ThemeContext';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -8,61 +7,101 @@ interface Toast {
   id: number;
   message: string;
   type: ToastType;
+  description?: string;
 }
 
 interface ToastContextValue {
-  toast: (message: string, type?: ToastType) => void;
+  toast: (message: string, type?: ToastType, description?: string) => void;
+  success: (message: string, description?: string) => void;
+  error: (message: string, description?: string) => void;
+  warning: (message: string, description?: string) => void;
+  info: (message: string, description?: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue>({ toast: () => {} });
+const ToastContext = createContext<ToastContextValue>({
+  toast: () => {},
+  success: () => {},
+  error: () => {},
+  warning: () => {},
+  info: () => {},
+});
 
 export const useToast = () => useContext(ToastContext);
 
 let nextId = 1;
 
+const TOAST_LIFE_MS: Record<ToastType, number> = {
+  success: 3500,
+  info: 4000,
+  warning: 5000,
+  error: 6000,
+};
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const { isDark } = useTheme();
 
-  const toast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = nextId++;
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  const remove = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const remove = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  const toast = useCallback(
+    (message: string, type: ToastType = 'info', description?: string) => {
+      const id = nextId++;
+      setToasts((prev) => [...prev, { id, message, type, description }]);
+      const ttl = TOAST_LIFE_MS[type] ?? 4000;
+      window.setTimeout(() => remove(id), ttl);
+    },
+    [remove]
+  );
+
+  const success = useCallback(
+    (message: string, description?: string) => toast(message, 'success', description),
+    [toast]
+  );
+  const error = useCallback(
+    (message: string, description?: string) => toast(message, 'error', description),
+    [toast]
+  );
+  const warning = useCallback(
+    (message: string, description?: string) => toast(message, 'warning', description),
+    [toast]
+  );
+  const info = useCallback(
+    (message: string, description?: string) => toast(message, 'info', description),
+    [toast]
+  );
 
   const icons: Record<ToastType, ReactNode> = {
-    success: <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />,
-    error: <XCircle className="w-4 h-4 text-red-400 shrink-0" />,
-    warning: <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />,
-    info: <Info className="w-4 h-4 text-blue-400 shrink-0" />,
-  };
-
-  const borderColors: Record<ToastType, string> = {
-    success: 'border-l-emerald-500',
-    error: 'border-l-red-500',
-    warning: 'border-l-amber-500',
-    info: 'border-l-blue-500',
+    success: <CheckCircle className="w-4 h-4" strokeWidth={2.2} />,
+    error: <XCircle className="w-4 h-4" strokeWidth={2.2} />,
+    warning: <AlertTriangle className="w-4 h-4" strokeWidth={2.2} />,
+    info: <Info className="w-4 h-4" strokeWidth={2.2} />,
   };
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={{ toast, success, error, warning, info }}>
       {children}
-      {/* Toast container */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      <div
+        className="nx-toast-stack"
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+      >
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`toast-slide-in flex items-center gap-3 px-4 py-3 rounded-xl border-l-4 ${borderColors[t.type]} ${
-              isDark
-                ? 'bg-[#1A1A1A] border border-zinc-800 text-zinc-200 shadow-xl shadow-black/30'
-                : 'bg-white border border-gray-200 text-gray-700 shadow-lg shadow-gray-200/50'
-            }`}
-          >
-            {icons[t.type]}
-            <span className="text-sm font-medium flex-1">{t.message}</span>
-            <button onClick={() => remove(t.id)} className={`${isDark ? 'text-zinc-500 hover:text-white' : 'text-gray-400 hover:text-gray-700'} transition-colors`}>
+          <div key={t.id} className={`nx-toast is-${t.type}`} role="status">
+            <div className="nx-toast-icon" aria-hidden>
+              {icons[t.type]}
+            </div>
+            <div className="nx-toast-body">
+              <div className="nx-toast-title">{t.message}</div>
+              {t.description && <div className="nx-toast-desc">{t.description}</div>}
+            </div>
+            <button
+              className="nx-toast-close"
+              onClick={() => remove(t.id)}
+              aria-label="Dismiss notification"
+              type="button"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>

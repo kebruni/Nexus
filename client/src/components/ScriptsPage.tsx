@@ -4,6 +4,7 @@ import type { Agent } from '../types';
 import { Plus, Play, Trash2, FileCode, Terminal } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import EmptyState from './EmptyState';
 import { useHasRole } from '../hooks/useCurrentUser';
 
 const API_BASE = '/api';
@@ -172,12 +173,22 @@ export default function ScriptsPage() {
 
       {/* Scripts list */}
       {scripts.length === 0 && !editing ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className={`w-14 h-14 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-200'} border rounded-2xl flex items-center justify-center mb-4`}>
-            <FileCode className={`w-6 h-6 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
-          </div>
-          <p className={`font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{t('scripts.noScripts')}</p>
-          <p className={`text-sm ${isDark ? 'text-zinc-600' : 'text-gray-400'} mt-1`}>{t('scripts.createFirst')}</p>
+        <div className="nx-empty-panel">
+          <EmptyState
+            icon={FileCode}
+            title={t('scripts.emptyTitle')}
+            description={t('scripts.emptyDesc')}
+            action={
+              <button
+                type="button"
+                className="nx-btn is-primary"
+                onClick={() => setEditing(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {t('scripts.create')}
+              </button>
+            }
+          />
         </div>
       ) : (
         <div className="space-y-3">

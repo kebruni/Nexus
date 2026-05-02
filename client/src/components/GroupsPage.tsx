@@ -3,7 +3,9 @@ import type { Agent } from '../types';
 import { Plus, Trash2, FolderOpen, UserPlus, Power, Lock, Terminal as TerminalIcon, RotateCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import { useHasRole } from '../hooks/useCurrentUser';
+import EmptyState from './EmptyState';
 
 const API_BASE = '/api';
 
@@ -34,6 +36,7 @@ export default function GroupsPage() {
   const [lastBulk, setLastBulk] = useState<Record<string, BulkResult>>({});
   const { t } = useLanguage();
   const { isDark } = useTheme();
+  const toast = useToast();
   const canActOnGroup = useHasRole('operator');
 
   const token = localStorage.getItem('pc-hub-token');
@@ -47,16 +50,29 @@ export default function GroupsPage() {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    const res = await fetch(`${API_BASE}/groups`, { method: 'POST', headers, body: JSON.stringify({ name: newName, color: newColor }) });
-    const group = await res.json();
-    setGroups((prev) => [...prev, group]);
-    setNewName('');
+    try {
+      const res = await fetch(`${API_BASE}/groups`, { method: 'POST', headers, body: JSON.stringify({ name: newName, color: newColor }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      const group = await res.json();
+      setGroups((prev) => [...prev, group]);
+      const created = newName;
+      setNewName('');
+      toast.success(t('groups.createdOk', { name: created }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleDelete = async (name: string) => {
-    await fetch(`${API_BASE}/groups/${encodeURIComponent(name)}`, { method: 'DELETE', headers });
-    setGroups((prev) => prev.filter((g) => g.name !== name));
-    setAgents((prev) => prev.map((a) => a.group === name ? { ...a, group: undefined } : a));
+    try {
+      const res = await fetch(`${API_BASE}/groups/${encodeURIComponent(name)}`, { method: 'DELETE', headers });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      setGroups((prev) => prev.filter((g) => g.name !== name));
+      setAgents((prev) => prev.map((a) => a.group === name ? { ...a, group: undefined } : a));
+      toast.success(t('groups.deletedOk', { name }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleAssignAgent = async (agentId: string, groupName: string | null) => {
@@ -72,12 +88,12 @@ export default function GroupsPage() {
   const runBulk = async (group: Group, action: BulkAction, command?: string) => {
     const members = agentsInGroup(group.name);
     if (members.length === 0) {
-      window.alert(t('groups.bulkEmpty'));
+      toast.warning(t('groups.bulkEmpty'));
       return;
     }
     const online = onlineInGroup(group.name);
     if (online.length === 0) {
-      window.alert(t('groups.bulkNoOnline'));
+      toast.warning(t('groups.bulkNoOnline'));
       return;
     }
     const actionLabel: Record<BulkAction, string> = {
@@ -100,7 +116,7 @@ export default function GroupsPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        window.alert(data.error || 'Failed');
+        toast.error(data.error || 'Failed');
         return;
       }
       setLastBulk((prev) => ({
@@ -114,8 +130,9 @@ export default function GroupsPage() {
           ts: Date.now(),
         },
       }));
+      toast.success(t('groups.bulkDispatched', { sent: data.sent || 0, total: data.total || 0, group: group.name }));
     } catch (err) {
-      window.alert(String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusyGroup(null);
     }
@@ -153,11 +170,12 @@ export default function GroupsPage() {
 
       {/* Groups list */}
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className={`w-14 h-14 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-gray-200'} border rounded-2xl flex items-center justify-center mb-4`}>
-            <FolderOpen className={`w-6 h-6 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
-          </div>
-          <p className={`font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{t('groups.noGroups')}</p>
+        <div className="nx-empty-panel">
+          <EmptyState
+            icon={FolderOpen}
+            title={t('groups.emptyTitle')}
+            description={t('groups.emptyDesc')}
+          />
         </div>
       ) : (
         <div className="space-y-4">

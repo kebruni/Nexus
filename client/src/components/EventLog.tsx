@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { SystemEvent } from '../types';
-import { Activity, RefreshCw, Filter } from 'lucide-react';
+import { Activity, RefreshCw, Filter, Search } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import EmptyState from './EmptyState';
 
 const API_BASE = '/api';
 
@@ -10,7 +11,7 @@ export default function EventLog() {
   const [events, setEvents] = useState<SystemEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const { isDark } = useTheme();
 
   const loadEvents = async () => {
@@ -90,14 +91,29 @@ export default function EventLog() {
       <div className={`${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200 shadow-sm'} border rounded-xl overflow-hidden`}>
         <div className="max-h-[600px] overflow-auto">
           {filtered.length === 0 ? (
-            <div className={`py-16 sm:py-20 flex flex-col items-center justify-center ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
-              <div className={`w-14 h-14 ${isDark ? 'bg-zinc-900' : 'bg-gray-100'} rounded-full flex items-center justify-center mb-4`}>
-                <Activity className="w-6 h-6 opacity-60" />
-              </div>
-              <p className={`font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{t('events.noEvents')}</p>
-              <p className={`text-sm mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                {filter ? (lang === 'ru' ? 'Попробуйте изменить фильтр' : lang === 'kz' ? 'Сүзгіні өзгертіп көріңіз' : 'Try changing the filter') : ''}
-              </p>
+            <div style={{ padding: '40px 16px' }}>
+              {filter ? (
+                <EmptyState
+                  icon={Search}
+                  title={t('events.emptyFilteredTitle')}
+                  description={t('events.emptyFilteredDesc')}
+                  action={
+                    <button
+                      type="button"
+                      className="nx-btn"
+                      onClick={() => setFilter('')}
+                    >
+                      {t('events.clearFilter')}
+                    </button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon={Activity}
+                  title={t('events.emptyTitle')}
+                  description={t('events.emptyDesc')}
+                />
+              )}
             </div>
           ) : (
             <table className="w-full text-sm">
