@@ -283,10 +283,6 @@ export default function Login({ onLogin }: LoginProps) {
                 {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
 
-              <div className="nx-login-default">
-                <span className="nx-eyebrow text-[color:var(--fg-dim)]">{t('login.defaultLabel')}</span>
-                <code className="num-mono text-[12px] ml-2">admin / admin123</code>
-              </div>
             </form>
           )}
         </div>
