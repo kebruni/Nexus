@@ -316,9 +316,9 @@ function DeviceRow({
           )}
         </div>
       </td>
-      <BarCell value={cpu} accent="accent" />
-      <BarCell value={mem} accent="warm" />
-      <BarCell value={disk} accent="info" />
+      <BarCell value={cpu} accent="accent" label="CPU" />
+      <BarCell value={mem} accent="warm" label="MEM" />
+      <BarCell value={disk} accent="info" label="DISK" />
       <td style={{ width: 110 }}>
         {sparkPath ? (
           <svg viewBox="0 0 100 28" className="block w-full h-7" preserveAspectRatio="none">
@@ -349,10 +349,18 @@ function DeviceRow({
   );
 }
 
-function BarCell({ value, accent }: { value: number; accent: 'accent' | 'warm' | 'info' }) {
+function BarCell({
+  value,
+  accent,
+  label,
+}: {
+  value: number;
+  accent: 'accent' | 'warm' | 'info';
+  label?: string;
+}) {
   const tone = value > 85 ? 'danger' : value > 65 ? 'warn' : accent;
   return (
-    <td style={{ minWidth: 130 }}>
+    <td style={{ minWidth: 130 }} data-label={label}>
       <div className="flex items-center gap-2">
         <div className="num-mono text-[12px] text-[color:var(--fg)] w-9 text-right">
           {value > 0 ? value.toFixed(0) : '—'}

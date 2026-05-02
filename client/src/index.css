@@ -1408,3 +1408,123 @@ body {
   text-transform: lowercase;
   white-space: nowrap;
 }
+
+/* ============================================================
+   Phone / mobile (≤ 640px)
+   Tablets are already handled by ≤900px rules above.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Top bar — tighter, hide breadcrumb prefix to save space */
+  .nx-topbar { padding: 0 10px; gap: 6px; height: 48px; }
+  .nx-topbar > .ml-auto { gap: 6px; }
+  .nx-breadcrumbs > span:first-child,
+  .nx-breadcrumbs > svg { display: none; }
+  .nx-breadcrumbs .nx-section-title { font-size: 13px; }
+
+  /* Main scroll area — tighter padding */
+  .nx-main { padding: 12px; }
+
+  /* Page header — stack title block above actions */
+  .nx-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .nx-page-head h1 { font-size: 20px !important; }
+  .nx-page-head > div:last-child { width: 100%; flex-wrap: wrap; }
+
+  /* Search + segmented filter become full-width strips */
+  .nx-search { min-width: 0; flex: 1 1 100%; width: 100%; }
+  .nx-segmented { width: 100%; justify-content: space-between; }
+  .nx-segmented-item { flex: 1; justify-content: center; }
+
+  /* Panel — title and toolbar stack on tight cards */
+  .nx-panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .nx-panel-body { padding: 10px 12px; }
+
+  /* KPI cards keep 2-up but tighter */
+  .nx-kpi { padding: 10px 12px; }
+
+  /* Devices data-grid → card layout (drops table semantics visually) */
+  .nx-grid-wrap { max-height: none; overflow: visible; }
+  .nx-grid thead { display: none; }
+  .nx-grid tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "status host    uptime"
+      "tags   tags    tags"
+      "cpu    cpu     cpu"
+      "mem    mem     mem"
+      "disk   disk    disk";
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--divider);
+    background: var(--bg-grid-row);
+    border-radius: 0;
+  }
+  .nx-grid tbody td {
+    padding: 0 !important;
+    border: 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+  /* Hide trend (7th) and latency (8th) on phone */
+  .nx-grid tbody td:nth-child(7),
+  .nx-grid tbody td:nth-child(8) { display: none; }
+  /* Assign grid areas */
+  .nx-grid tbody td:nth-child(1) { grid-area: status; }
+  .nx-grid tbody td:nth-child(2) { grid-area: host; min-width: 0 !important; }
+  .nx-grid tbody td:nth-child(3) { grid-area: tags; }
+  .nx-grid tbody td:nth-child(4) { grid-area: cpu; }
+  .nx-grid tbody td:nth-child(5) { grid-area: mem; }
+  .nx-grid tbody td:nth-child(6) { grid-area: disk; }
+  .nx-grid tbody td:nth-child(9) {
+    grid-area: uptime;
+    text-align: right;
+    font-size: 11px;
+    color: var(--fg-muted);
+  }
+  /* Bar cells get a leading label (data-label="CPU"/"MEM"/"DISK") */
+  .nx-grid tbody td[data-label] {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+  }
+  .nx-grid tbody td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 36px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .nx-grid tbody td[data-label] > div { flex: 1 1 auto; min-width: 0; }
+
+  /* Login form panel — tighter padding */
+  .nx-login-form-wrap { padding: 18px; }
+  .nx-login-form { padding: 22px 20px 18px; }
+  .nx-login-form-head h1 { font-size: 22px !important; }
+  .nx-login-controls { top: 10px; right: 10px; }
+
+  /* Install banner — already collapses at 720px, fine here */
+
+  /* Fleet rows — at very narrow viewports, stack the 3 bars */
+  .nx-fleet-row { padding: 10px; }
+}
+
+/* ≤ 420px (small phones / iPhone SE width) — stack fleet bars */
+@media (max-width: 420px) {
+  .nx-fleet-row-bars { grid-template-columns: 1fr; gap: 6px; }
+  .nx-kpi-strip { grid-template-columns: 1fr 1fr; }
+  .nx-kpi { padding: 8px 10px; }
+  .nx-kpi .nx-kpi-value { font-size: 22px; }
+  .nx-page-head h1 { font-size: 19px !important; }
+}
