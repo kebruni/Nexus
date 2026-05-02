@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck, Plus, Trash2, Key, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import EmptyState from './EmptyState';
 import type { Role } from '../api/auth';
 
 const API_BASE = '/api';
@@ -18,6 +20,7 @@ interface UserRow {
 export default function UsersPage() {
   const { t } = useLanguage();
   const { isDark } = useTheme();
+  const toast = useToast();
   const me = useCurrentUser();
 
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -65,12 +68,16 @@ export default function UsersPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
+      const createdUser = newUsername.trim();
       setNewUsername('');
       setNewPassword('');
       setNewRole('viewer');
       await refresh();
+      toast.success(t('users.createdOk', { username: createdUser }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -83,8 +90,11 @@ export default function UsersPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       await refresh();
+      toast.success(t('users.deletedOk', { username }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -97,8 +107,11 @@ export default function UsersPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       await refresh();
+      toast.success(t('users.roleChangedOk', { username, role }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -106,7 +119,7 @@ export default function UsersPage() {
     const pwd = window.prompt(t('users.promptNewPassword', { username }));
     if (!pwd) return;
     if (pwd.length < 8) {
-      window.alert(t('users.passwordTooShort'));
+      toast.warning(t('users.passwordTooShort'));
       return;
     }
     try {
@@ -116,10 +129,12 @@ export default function UsersPage() {
         body: JSON.stringify({ newPassword: pwd }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-      window.alert(t('users.passwordResetOk', { username }));
+      toast.success(t('users.passwordResetOk', { username }));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -275,8 +290,14 @@ export default function UsersPage() {
             })}
             {users.length === 0 && !loading && (
               <tr>
-                <td colSpan={4} className={`px-4 py-8 text-center text-sm ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
-                  {t('users.empty')}
+                <td colSpan={4} className="p-0">
+                  <div className="nx-empty-panel">
+                    <EmptyState
+                      icon={ShieldCheck}
+                      title={t('users.emptyTitle')}
+                      description={t('users.emptyDesc')}
+                    />
+                  </div>
                 </td>
               </tr>
             )}

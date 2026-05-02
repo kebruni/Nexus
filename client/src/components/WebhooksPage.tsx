@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Webhook, Plus, Trash2, Send, Power, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
+import EmptyState from './EmptyState';
 
 const API_BASE = '/api';
 type WebhookType = 'telegram' | 'discord' | 'slack' | 'generic';
@@ -19,6 +21,7 @@ interface Hook {
 
 export default function WebhooksPage() {
   const { t } = useLanguage();
+  const toast = useToast();
   const { isDark } = useTheme();
 
   const [hooks, setHooks] = useState<Hook[]>([]);
@@ -80,8 +83,11 @@ export default function WebhooksPage() {
       if (!r.ok) throw new Error((await r.json()).error || `HTTP ${r.status}`);
       resetForm();
       await refresh();
+      toast.success(t('webhooks.createdOk', { name }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -95,8 +101,13 @@ export default function WebhooksPage() {
       });
       if (!r.ok) throw new Error((await r.json()).error || `HTTP ${r.status}`);
       await refresh();
+      toast.success(
+        h.enabled ? t('webhooks.disabledOk', { name: h.name }) : t('webhooks.enabledOk', { name: h.name })
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -109,8 +120,11 @@ export default function WebhooksPage() {
       const r = await fetch(`${API_BASE}/webhooks/${encodeURIComponent(h.id)}`, { method: 'DELETE', headers });
       if (!r.ok) throw new Error((await r.json()).error || `HTTP ${r.status}`);
       await refresh();
+      toast.success(t('webhooks.deletedOk', { name: h.name }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -122,9 +136,9 @@ export default function WebhooksPage() {
       const r = await fetch(`${API_BASE}/webhooks/${encodeURIComponent(h.id)}/test`, { method: 'POST', headers });
       const data = await r.json();
       if (!data.ok) {
-        window.alert(t('webhooks.testFailed', { error: data.error || 'unknown error' }));
+        toast.error(t('webhooks.testFailed', { error: data.error || 'unknown error' }));
       } else {
-        window.alert(t('webhooks.testOk', { name: h.name }));
+        toast.success(t('webhooks.testOk', { name: h.name }));
       }
       await refresh();
     } catch (e) {
@@ -318,8 +332,14 @@ export default function WebhooksPage() {
             ))}
             {hooks.length === 0 && !loading && (
               <tr>
-                <td colSpan={5} className={`px-4 py-8 text-center text-sm ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
-                  {t('webhooks.empty')}
+                <td colSpan={5} className="p-0">
+                  <div className="nx-empty-panel">
+                    <EmptyState
+                      icon={Webhook}
+                      title={t('webhooks.emptyTitle')}
+                      description={t('webhooks.emptyDesc')}
+                    />
+                  </div>
                 </td>
               </tr>
             )}

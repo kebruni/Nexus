@@ -17,6 +17,7 @@ import {
   Moon,
   Globe,
   ChevronRight,
+  ChevronDown,
   FileCode,
   Users,
   ShieldCheck,
@@ -24,7 +25,10 @@ import {
   Wifi,
   WifiOff,
   Server,
+  Lock,
+  Check,
 } from 'lucide-react';
+import ChangePasswordDialog from './ChangePasswordDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
@@ -81,6 +85,8 @@ const NAV_GROUPS: NavGroup[] = [
 export default function Layout({ onLogout }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [socketConnected, setSocketConnected] = useState(false);
   const navigate = useNavigate();
@@ -274,20 +280,6 @@ export default function Layout({ onLogout }: LayoutProps) {
             <strong>{onlineCount}<span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span></strong>
           </div>
 
-          {currentUser && (
-            <div
-              className={`nx-pill ${
-                currentUser.role === 'admin' ? 'is-accent' : currentUser.role === 'operator' ? 'is-ok' : 'is-muted'
-              } hidden sm:inline-flex`}
-              title={`${currentUser.username} — ${currentUser.role}`}
-            >
-              <ShieldCheck className="w-3 h-3" />
-              <span className="normal-case font-semibold tracking-normal">{currentUser.username}</span>
-              <span className="opacity-60">·</span>
-              <span>{currentUser.role}</span>
-            </div>
-          )}
-
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             className="nx-btn nx-btn-icon nx-btn-sm"
@@ -327,8 +319,121 @@ export default function Layout({ onLogout }: LayoutProps) {
               </>
             )}
           </div>
+
+          {currentUser && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className={`nx-userpill${userMenuOpen ? ' is-open' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                title={`${currentUser.username} — ${currentUser.role}`}
+              >
+                <span className="nx-avatar" aria-hidden>
+                  {currentUser.username.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="nx-userpill-meta">
+                  <span className="nx-userpill-name">{currentUser.username}</span>
+                  <span className="nx-userpill-role">{currentUser.role}</span>
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 nx-userpill-caret" strokeWidth={2.2} />
+              </button>
+              {userMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden />
+                  <div className="nx-dropdown nx-dropdown-user" role="menu">
+                    <div className="nx-dropdown-header">
+                      <div className="nx-avatar nx-avatar-lg" aria-hidden>
+                        {currentUser.username.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="nx-dropdown-header-meta">
+                        <div className="nx-dropdown-header-name">{currentUser.username}</div>
+                        <div className="nx-dropdown-header-role">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>{t(`role.${currentUser.role}`) || currentUser.role}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="nx-dropdown-divider" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setChangePwdOpen(true);
+                      }}
+                      className="nx-dropdown-item"
+                      role="menuitem"
+                    >
+                      <Lock className="w-3.5 h-3.5 nx-dropdown-icon" strokeWidth={2} />
+                      <span>{t('userMenu.changePassword')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTheme(isDark ? 'light' : 'dark');
+                      }}
+                      className="nx-dropdown-item"
+                      role="menuitem"
+                    >
+                      {isDark ? (
+                        <Sun className="w-3.5 h-3.5 nx-dropdown-icon" strokeWidth={2} />
+                      ) : (
+                        <Moon className="w-3.5 h-3.5 nx-dropdown-icon" strokeWidth={2} />
+                      )}
+                      <span>{isDark ? t('userMenu.themeLight') : t('userMenu.themeDark')}</span>
+                    </button>
+
+                    <div className="nx-dropdown-section-label">{t('settings.language')}</div>
+                    {LANG_ORDER.map((l) => (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => {
+                          setLang(l);
+                        }}
+                        className={`nx-dropdown-item nx-dropdown-item-lang${l === lang ? ' is-active' : ''}`}
+                        role="menuitemradio"
+                        aria-checked={l === lang}
+                      >
+                        <span className="num-mono text-[10px] text-[color:var(--fg-dim)] w-6">{LANG_LABELS[l]}</span>
+                        <span className="flex-1 text-left">{l === 'en' ? 'English' : l === 'ru' ? 'Русский' : 'Қазақша'}</span>
+                        {l === lang && <Check className="w-3.5 h-3.5 text-[color:var(--accent)]" strokeWidth={2.4} />}
+                      </button>
+                    ))}
+
+                    <div className="nx-dropdown-divider" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="nx-dropdown-item is-danger"
+                      role="menuitem"
+                    >
+                      <LogOut className="w-3.5 h-3.5 nx-dropdown-icon" strokeWidth={2} />
+                      <span>{t('userMenu.logout')}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
+
+      {currentUser && (
+        <ChangePasswordDialog
+          open={changePwdOpen}
+          onClose={() => setChangePwdOpen(false)}
+          username={currentUser.username}
+        />
+      )}
 
       <main className="nx-main">
         <div key={location.pathname} className="page-enter">

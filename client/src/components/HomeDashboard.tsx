@@ -90,6 +90,8 @@ export default function HomeDashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [events, setEvents] = useState<SystemEvent[]>([]);
   const [installer, setInstaller] = useState<InstallerInfo | null>(null);
+  const [agentsLoaded, setAgentsLoaded] = useState(false);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
   const [cpuTrend, setCpuTrend] = useState<number[]>([]);
   const [memTrend, setMemTrend] = useState<number[]>([]);
   const [netTrend, setNetTrend] = useState<number[]>([]);
@@ -124,25 +126,44 @@ export default function HomeDashboard() {
     if (token) {
       fetch(`${API_BASE}/agents`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then(setAgents)
-        .catch(console.error);
+        .then((list) => {
+          setAgents(list);
+          setAgentsLoaded(true);
+        })
+        .catch((err) => {
+          console.error(err);
+          setAgentsLoaded(true);
+        });
 
       fetch(`${API_BASE}/events?limit=10`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then(setEvents)
-        .catch(console.error);
+        .then((list) => {
+          setEvents(list);
+          setEventsLoaded(true);
+        })
+        .catch((err) => {
+          console.error(err);
+          setEventsLoaded(true);
+        });
 
       fetch(`${API_BASE}/alerts/unread`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
         .then(setAlerts)
         .catch(console.error);
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAgentsLoaded(true);
+      setEventsLoaded(true);
     }
 
     const socket = getSocket();
     if (!socket) return;
 
     socket.emit('agents:requestList');
-    const onList = (list: Agent[]) => setAgents(list);
+    const onList = (list: Agent[]) => {
+      setAgents(list);
+      setAgentsLoaded(true);
+    };
     const onMetrics = ({ agentId, metrics }: { agentId: string; metrics: Agent['metrics'] }) => {
       setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, metrics, status: 'online' } : a)));
     };
@@ -291,7 +312,26 @@ export default function HomeDashboard() {
             </button>
           </div>
           <div className="nx-panel-body">
-            {agents.length === 0 ? (
+            {!agentsLoaded ? (
+              <div className="nx-fleet-list">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="nx-fleet-row" aria-hidden style={{ pointerEvents: 'none' }}>
+                    <div className="nx-fleet-row-head">
+                      <div className="flex items-center gap-2 min-w-0 w-full">
+                        <span className="nx-skel" style={{ width: 60, height: 18, borderRadius: 999 }} />
+                        <span className="nx-skel" style={{ width: '40%', height: 14 }} />
+                      </div>
+                      <span className="nx-skel" style={{ width: 60, height: 12 }} />
+                    </div>
+                    <div className="nx-fleet-row-bars">
+                      <span className="nx-skel" style={{ height: 22 }} />
+                      <span className="nx-skel" style={{ height: 22 }} />
+                      <span className="nx-skel" style={{ height: 22 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : agents.length === 0 ? (
               <div className="nx-empty">
                 <Server className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
                 <span>{t('home.noAgents')}</span>
@@ -351,7 +391,19 @@ export default function HomeDashboard() {
             </button>
           </div>
           <div className="nx-panel-body" style={{ padding: 0 }}>
-            {events.length === 0 ? (
+            {!eventsLoaded ? (
+              <ul className="nx-event-list" aria-hidden>
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <li key={idx}>
+                    <span className="nx-event-dot" style={{ background: 'var(--bg-elevated)' }} />
+                    <div className="min-w-0 w-full" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <span className="nx-skel" style={{ width: `${60 + ((idx * 13) % 30)}%`, height: 12 }} />
+                      <span className="nx-skel" style={{ width: 70, height: 10 }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : events.length === 0 ? (
               <div className="nx-empty" style={{ padding: '32px 16px' }}>
                 <Activity className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
                 <span>{t('home.noActivity')}</span>
