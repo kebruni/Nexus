@@ -27,8 +27,12 @@ import {
   Server,
   Lock,
   Check,
+  Search,
+  Sliders,
 } from 'lucide-react';
 import ChangePasswordDialog from './ChangePasswordDialog';
+import CommandPalette from './CommandPalette';
+import NotificationBell from './NotificationBell';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
@@ -87,6 +91,7 @@ export default function Layout({ onLogout }: LayoutProps) {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [changePwdOpen, setChangePwdOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [socketConnected, setSocketConnected] = useState(false);
   const navigate = useNavigate();
@@ -137,6 +142,19 @@ export default function Layout({ onLogout }: LayoutProps) {
     const title = getPageTitle();
     document.title = title === 'Nexus' ? 'Nexus' : `Nexus — ${title}`;
   }, [getPageTitle]);
+
+  // Global Cmd/Ctrl+K to open command palette (and Cmd+/)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (isMod && (e.key === 'k' || e.key === 'K' || e.key === '/')) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Socket connection status + live agents counter
   useEffect(() => {
@@ -274,11 +292,38 @@ export default function Layout({ onLogout }: LayoutProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <div className="nx-chip hidden md:inline-flex" title={t('layout.connectedAgents')}>
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="nx-search-trigger hidden md:inline-flex"
+            title={t('cmdk.openHint')}
+            aria-label={t('cmdk.openHint')}
+          >
+            <Search className="w-3.5 h-3.5" strokeWidth={2} />
+            <span className="nx-search-trigger-label">{t('cmdk.openHint')}</span>
+            <span className="nx-search-trigger-kbd">
+              <kbd className="nx-kbd">⌘</kbd>
+              <kbd className="nx-kbd">K</kbd>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="nx-btn nx-btn-icon nx-btn-sm md:hidden"
+            title={t('cmdk.openHint')}
+            aria-label={t('cmdk.openHint')}
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
+          <div className="nx-chip hidden lg:inline-flex" title={t('layout.connectedAgents')}>
             {socketConnected ? <Wifi className="w-3.5 h-3.5 text-[color:var(--ok)]" /> : <WifiOff className="w-3.5 h-3.5 text-[color:var(--danger)]" />}
             <span className="text-[color:var(--fg-muted)]">{t('layout.online')}</span>
             <strong>{onlineCount}<span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span></strong>
           </div>
+
+          <NotificationBell />
 
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
@@ -362,6 +407,19 @@ export default function Layout({ onLogout }: LayoutProps) {
                       type="button"
                       onClick={() => {
                         setUserMenuOpen(false);
+                        navigate('/dashboard/settings');
+                      }}
+                      className="nx-dropdown-item"
+                      role="menuitem"
+                    >
+                      <Sliders className="w-3.5 h-3.5 nx-dropdown-icon" strokeWidth={2} />
+                      <span>{t('userMenu.settings')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
                         setChangePwdOpen(true);
                       }}
                       className="nx-dropdown-item"
@@ -434,6 +492,8 @@ export default function Layout({ onLogout }: LayoutProps) {
           username={currentUser.username}
         />
       )}
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       <main className="nx-main">
         <div key={location.pathname} className="page-enter">

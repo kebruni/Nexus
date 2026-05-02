@@ -370,6 +370,18 @@ class Store {
     return alert;
   }
 
+  acknowledgeAllAlerts() {
+    let count = 0;
+    for (const a of this.alerts) {
+      if (!a.acknowledged) {
+        a.acknowledged = true;
+        count += 1;
+      }
+    }
+    if (count > 0) this._persist();
+    return count;
+  }
+
   getAlerts(limit = 100) {
     return this.alerts.slice(0, limit);
   }
