@@ -16,6 +16,8 @@ export default function FileExplorer() {
   const { isDark } = useTheme();
 
   useEffect(() => {
+    const requestedAgentId = new URLSearchParams(window.location.search).get('agent');
+
     const token = localStorage.getItem('pc-hub-token');
     if (token) {
       fetch(`${API_BASE}/agents`, { headers: { Authorization: `Bearer ${token}` } })
@@ -24,6 +26,10 @@ export default function FileExplorer() {
           setAgents(list);
           setSelectedAgent((previous) => {
             if (previous && list.some((agent) => agent.id === previous)) return previous;
+            if (requestedAgentId) {
+              const requested = list.find((a) => a.id === requestedAgentId);
+              if (requested) return requested.id;
+            }
             const firstOnlineAgent = list.find((agent) => agent.status === 'online');
             return firstOnlineAgent ? firstOnlineAgent.id : previous;
           });
@@ -40,6 +46,10 @@ export default function FileExplorer() {
       // Auto-select first online agent if none selected
       setSelectedAgent(prev => {
         if (prev && list.find(a => a.id === prev)) return prev;
+        if (requestedAgentId) {
+          const requested = list.find((a) => a.id === requestedAgentId);
+          if (requested) return requested.id;
+        }
         const first = list.find(a => a.status === 'online');
         return first ? first.id : prev;
       });

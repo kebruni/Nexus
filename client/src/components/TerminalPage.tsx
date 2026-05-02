@@ -16,6 +16,9 @@ export default function TerminalPage() {
   const { isDark } = useTheme();
 
   useEffect(() => {
+    // Allow deep-linking via ?agent=<id> to pre-select a device.
+    const requestedAgentId = new URLSearchParams(window.location.search).get('agent');
+
     // Fetch agents via REST API on mount
     const token = localStorage.getItem('pc-hub-token');
     if (token) {
@@ -23,8 +26,13 @@ export default function TerminalPage() {
         .then(r => r.json())
         .then((list: Agent[]) => {
           setAgents(list);
-          const first = list.find(a => a.status === 'online');
-          if (first) setSelectedAgent(first.id);
+          const requested = requestedAgentId ? list.find(a => a.id === requestedAgentId) : null;
+          if (requested) {
+            setSelectedAgent(requested.id);
+          } else {
+            const first = list.find(a => a.status === 'online');
+            if (first) setSelectedAgent(first.id);
+          }
         })
         .catch(() => {});
     }
@@ -36,6 +44,10 @@ export default function TerminalPage() {
       setAgents(list);
       setSelectedAgent(prev => {
         if (prev && list.find(a => a.id === prev)) return prev;
+        if (requestedAgentId) {
+          const requested = list.find(a => a.id === requestedAgentId);
+          if (requested) return requested.id;
+        }
         const first = list.find(a => a.status === 'online');
         return first ? first.id : prev;
       });

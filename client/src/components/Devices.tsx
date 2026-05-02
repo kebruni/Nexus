@@ -5,6 +5,11 @@ import {
   ChevronUp,
   ChevronDown,
   Server,
+  TerminalSquare,
+  FolderOpen,
+  Monitor,
+  ExternalLink,
+  Download,
 } from 'lucide-react';
 import { getSocket } from '../api/socket';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -173,12 +178,12 @@ export default function Devices() {
     <div className="nx-page">
       <header className="nx-page-head">
         <div>
-          <div className="nx-eyebrow">Inventory</div>
+          <div className="nx-eyebrow">{t('devices.eyebrow')}</div>
           <h1 className="text-[24px] font-bold tracking-tight text-[color:var(--fg-strong)] mt-1">
             {t('devices.title')}
           </h1>
           <p className="text-[13px] text-[color:var(--fg-muted)] mt-1">
-            {agents.length} {t('devices.connected')} · {onlineCount} online
+            {agents.length} {t('devices.connected')} · {onlineCount} {t('devices.online')}
           </p>
         </div>
 
@@ -188,7 +193,7 @@ export default function Devices() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search host, IP, agent ID…"
+              placeholder={t('devices.searchPlaceholder')}
               className="nx-search-input"
             />
           </div>
@@ -199,7 +204,7 @@ export default function Devices() {
                 onClick={() => setStatusFilter(v)}
                 className={`nx-segmented-item ${statusFilter === v ? 'is-active' : ''}`}
               >
-                {v === 'all' ? 'All' : v === 'online' ? 'Online' : 'Offline'}
+                {v === 'all' ? t('devices.filterAll') : v === 'online' ? t('devices.filterOnline') : t('devices.filterOffline')}
                 <span className="num-mono text-[10px] text-[color:var(--fg-dim)] ml-1.5">
                   {v === 'all' ? agents.length : v === 'online' ? onlineCount : agents.length - onlineCount}
                 </span>
@@ -212,7 +217,7 @@ export default function Devices() {
       <div className="nx-panel">
         <div className="nx-panel-head">
           <div className="nx-panel-title">
-            <Server className="w-4 h-4 text-[color:var(--accent)]" /> Agents
+            <Server className="w-4 h-4 text-[color:var(--accent)]" /> {t('devices.agentsPanel')}
             <span className="nx-tag ml-2">{sorted.length}</span>
           </div>
         </div>
@@ -220,15 +225,16 @@ export default function Devices() {
           <table className="nx-grid">
             <thead>
               <tr>
-                {renderTh('status', 'Status')}
-                {renderTh('host', 'Host')}
-                <th>Platform</th>
-                {renderTh('cpu', 'CPU')}
-                {renderTh('mem', 'Memory')}
-                {renderTh('disk', 'Disk')}
-                <th>Trend</th>
-                {renderTh('lat', 'Lat', 'right')}
-                {renderTh('last', 'Up', 'right')}
+                {renderTh('status', t('devices.colStatus'))}
+                {renderTh('host', t('devices.colHost'))}
+                <th>{t('devices.colPlatform')}</th>
+                {renderTh('cpu', t('devices.colCpu'))}
+                {renderTh('mem', t('devices.colMemory'))}
+                {renderTh('disk', t('devices.colDisk'))}
+                <th>{t('devices.colTrend')}</th>
+                {renderTh('lat', t('devices.colLat'), 'right')}
+                {renderTh('last', t('devices.colUp'), 'right')}
+                <th style={{ width: 156, textAlign: 'right' }} aria-label="actions" />
               </tr>
             </thead>
             <tbody>
@@ -240,15 +246,31 @@ export default function Devices() {
                   spark={sparkDataByAgent[agent.id] || []}
                   now={now}
                   onClick={() => navigate(`/dashboard/computer/${agent.id}`)}
+                  navigate={navigate}
+                  t={t}
                 />
               ))}
               {sorted.length === 0 && (
-                <tr>
-                  <td colSpan={9}>
-                    <div className="nx-empty" style={{ padding: '38px 12px' }}>
-                      <Server className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
-                      <span>{t('devices.noDevices')}</span>
-                      <span className="text-[12px] text-[color:var(--fg-dim)] mt-1">{t('devices.startAgent')}</span>
+                <tr className="nx-grid-empty-row">
+                  <td colSpan={10}>
+                    <div className="nx-empty-rich">
+                      <div className="nx-empty-rich-icon">
+                        <Server className="w-7 h-7" strokeWidth={1.6} />
+                      </div>
+                      <div className="nx-empty-rich-body">
+                        <h3 className="nx-empty-rich-title">{t('devices.firstRunTitle')}</h3>
+                        <p className="nx-empty-rich-desc">{t('devices.firstRunDesc')}</p>
+                        <div className="nx-empty-rich-actions">
+                          <a
+                            href={`${API_BASE}/agent/installer/download`}
+                            className="nx-btn is-primary"
+                            download
+                          >
+                            <Download className="w-4 h-4" />
+                            {t('devices.downloadCta')}
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -267,12 +289,16 @@ function DeviceRow({
   spark,
   now,
   onClick,
+  navigate,
+  t,
 }: {
   agent: Agent;
   latency?: number;
   spark: number[];
   now: number;
   onClick: () => void;
+  navigate: (path: string) => void;
+  t: ReturnType<typeof useLanguage>['t'];
 }) {
   const isOnline = agent.status === 'online';
   const cpu = agent.metrics?.cpu?.load ?? 0;
@@ -316,9 +342,9 @@ function DeviceRow({
           )}
         </div>
       </td>
-      <BarCell value={cpu} accent="accent" />
-      <BarCell value={mem} accent="warm" />
-      <BarCell value={disk} accent="info" />
+      <BarCell value={cpu} accent="accent" label="CPU" />
+      <BarCell value={mem} accent="warm" label="MEM" />
+      <BarCell value={disk} accent="info" label="DISK" />
       <td style={{ width: 110 }}>
         {sparkPath ? (
           <svg viewBox="0 0 100 28" className="block w-full h-7" preserveAspectRatio="none">
@@ -345,14 +371,65 @@ function DeviceRow({
       <td className="num-mono text-right text-[color:var(--fg-muted)]" style={{ width: 64 }}>
         {isOnline ? uptime : '—'}
       </td>
+      <td className="nx-row-actions" style={{ width: 156, textAlign: 'right' }}>
+        <div className="nx-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actShell') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actShell')}
+            onClick={() => navigate(`/dashboard/terminal?agent=${agent.id}`)}
+          >
+            <TerminalSquare className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actFiles') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actFiles')}
+            onClick={() => navigate(`/dashboard/files?agent=${agent.id}`)}
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn"
+            disabled={!isOnline}
+            title={isOnline ? t('devices.actRemote') : t('devices.actOfflineHint')}
+            aria-label={t('devices.actRemote')}
+            onClick={() => navigate(`/dashboard/remote?agent=${agent.id}`)}
+          >
+            <Monitor className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="nx-act-btn is-primary"
+            title={t('devices.actDetails')}
+            aria-label={t('devices.actDetails')}
+            onClick={onClick}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
     </tr>
   );
 }
 
-function BarCell({ value, accent }: { value: number; accent: 'accent' | 'warm' | 'info' }) {
+function BarCell({
+  value,
+  accent,
+  label,
+}: {
+  value: number;
+  accent: 'accent' | 'warm' | 'info';
+  label?: string;
+}) {
   const tone = value > 85 ? 'danger' : value > 65 ? 'warn' : accent;
   return (
-    <td style={{ minWidth: 130 }}>
+    <td style={{ minWidth: 130 }} data-label={label}>
       <div className="flex items-center gap-2">
         <div className="num-mono text-[12px] text-[color:var(--fg)] w-9 text-right">
           {value > 0 ? value.toFixed(0) : '—'}
