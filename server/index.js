@@ -406,6 +406,11 @@ app.post('/api/alerts/:id/acknowledge', authMiddleware, requireRole('operator'),
   res.json(alert);
 });
 
+app.post('/api/alerts/acknowledge-all', authMiddleware, requireRole('operator'), (req, res) => {
+  const count = store.acknowledgeAllAlerts();
+  res.json({ acknowledged: count });
+});
+
 // ── Alert Rules API ───────────────────────────────────────
 app.get('/api/alert-rules', authMiddleware, (req, res) => {
   res.json(store.getAlertRules());

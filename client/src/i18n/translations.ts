@@ -82,6 +82,8 @@ export const translations = {
   },
   'home.downloadAgentBuildHint': { en: 'See README to build', ru: 'См. README для сборки', kz: 'Құрастыру үшін README-ді қараңыз' },
   'home.recentActivity': { en: 'Recent Activity', ru: 'Последние действия', kz: 'Соңғы әрекеттер' },
+  'home.activityToday': { en: 'Today', ru: 'Сегодня', kz: 'Бүгін' },
+  'home.activityYesterday': { en: 'Yesterday', ru: 'Вчера', kz: 'Кеше' },
   'home.viewAll': { en: 'View all', ru: 'Смотреть все', kz: 'Барлығын көру' },
   'home.noActivity': { en: 'No recent activity', ru: 'Нет недавних действий', kz: 'Соңғы әрекеттер жоқ' },
 
@@ -177,6 +179,7 @@ export const translations = {
   'userMenu.changePassword': { en: 'Change password', ru: 'Сменить пароль', kz: 'Құпиясөзді өзгерту' },
   'userMenu.themeDark': { en: 'Switch to dark theme', ru: 'Включить тёмную тему', kz: 'Қара тақырыпқа ауысу' },
   'userMenu.themeLight': { en: 'Switch to light theme', ru: 'Включить светлую тему', kz: 'Ашық тақырыпқа ауысу' },
+  'userMenu.settings': { en: 'Account settings', ru: 'Настройки аккаунта', kz: 'Тіркелгі баптаулары' },
   'userMenu.logout': { en: 'Sign out', ru: 'Выйти', kz: 'Шығу' },
 
   // ── Roles ──
@@ -594,6 +597,86 @@ export const translations = {
     ru: 'Группируй устройства по отделам/локации, чтобы запускать команды на всех сразу.',
     kz: 'Барлық құрылғыларға бір рет әрекет жасау үшін оларды бөлім/орын бойынша топтаңыз.',
   },
+
+  // ── Command palette ──
+  'cmdk.openHint': { en: 'Search & jump…', ru: 'Поиск и переход…', kz: 'Іздеу және өту…' },
+  'cmdk.placeholder': {
+    en: 'Type a command or search devices…',
+    ru: 'Команда или поиск устройств…',
+    kz: 'Команда немесе құрылғы іздеу…',
+  },
+  'cmdk.noResults': { en: 'No matches', ru: 'Ничего не найдено', kz: 'Ештеңе табылмады' },
+  'cmdk.groupNav': { en: 'Pages', ru: 'Разделы', kz: 'Бөлімдер' },
+  'cmdk.groupAgents': {
+    en: 'Devices ({n})',
+    ru: 'Устройства ({n})',
+    kz: 'Құрылғылар ({n})',
+  },
+  'cmdk.hintNavigate': { en: 'navigate', ru: 'навигация', kz: 'жылжу' },
+  'cmdk.hintOpen': { en: 'open', ru: 'открыть', kz: 'ашу' },
+  'cmdk.online': { en: 'online', ru: 'онлайн', kz: 'желіде' },
+
+  // ── Notifications bell ──
+  'notifications.title': { en: 'Notifications', ru: 'Уведомления', kz: 'Хабарландырулар' },
+  'notifications.markAll': { en: 'Mark all read', ru: 'Прочитано всё', kz: 'Бәрі оқылды' },
+  'notifications.viewAll': { en: 'View all alerts', ru: 'Все уведомления', kz: 'Барлық ескертулер' },
+  'notifications.allClear': { en: 'All clear', ru: 'Всё спокойно', kz: 'Бәрі тыныш' },
+  'notifications.allClearDesc': {
+    en: 'No active alerts. Configure alert rules to be notified about issues.',
+    ru: 'Активных уведомлений нет. Настрой правила, чтобы получать алерты при проблемах.',
+    kz: 'Белсенді ескертулер жоқ. Мәселе кезінде хабарландыру үшін ережелер баптаңыз.',
+  },
+
+  // ── Settings page ──
+  'settings.title': { en: 'Settings', ru: 'Настройки', kz: 'Баптаулар' },
+  'settings.subtitle': {
+    en: 'Profile, security and interface preferences for your account.',
+    ru: 'Профиль, безопасность и настройки интерфейса.',
+    kz: 'Профиль, қауіпсіздік және интерфейс баптаулары.',
+  },
+  'settings.tabProfile': { en: 'Profile', ru: 'Профиль', kz: 'Профиль' },
+  'settings.tabSecurity': { en: 'Security', ru: 'Безопасность', kz: 'Қауіпсіздік' },
+  'settings.tabPreferences': { en: 'Preferences', ru: 'Настройки', kz: 'Баптаулар' },
+  'settings.profileTitle': { en: 'Profile information', ru: 'Профиль', kz: 'Профиль' },
+  'settings.profileDesc': {
+    en: 'Read-only details of the account you are signed in with.',
+    ru: 'Информация об аккаунте, под которым вы вошли (только просмотр).',
+    kz: 'Кірген тіркелгінің мәліметтері (тек қарап шығу).',
+  },
+  'settings.username': { en: 'Username', ru: 'Имя пользователя', kz: 'Пайдаланушы аты' },
+  'settings.role': { en: 'Role', ru: 'Роль', kz: 'Рөл' },
+  'settings.profileHint': {
+    en: 'Need to change your username? Ask an administrator.',
+    ru: 'Нужно изменить имя — попроси администратора.',
+    kz: 'Атты өзгерту үшін әкімшіге жүгініңіз.',
+  },
+  'settings.securityTitle': { en: 'Account security', ru: 'Безопасность аккаунта', kz: 'Тіркелгі қауіпсіздігі' },
+  'settings.securityDesc': {
+    en: 'Manage your password and authentication methods.',
+    ru: 'Управление паролем и методами входа.',
+    kz: 'Құпиясөз бен кіру әдістерін басқару.',
+  },
+  'settings.changePassword': { en: 'Change password', ru: 'Сменить пароль', kz: 'Құпиясөзді өзгерту' },
+  'settings.changePasswordDesc': {
+    en: 'Choose a new password — at least 8 characters and different from the current one.',
+    ru: 'Введите новый пароль — минимум 8 символов и отличающийся от текущего.',
+    kz: 'Жаңа құпиясөз енгізіңіз — кемінде 8 таңба және ағымдағыдан өзгеше.',
+  },
+  'settings.twoFactor': { en: 'Two-factor authentication', ru: 'Двухфакторная аутентификация', kz: 'Екі факторлы аутентификация' },
+  'settings.twoFactorDesc': {
+    en: 'Adds a second step (TOTP code) at login for extra protection.',
+    ru: 'Добавляет второй шаг (TOTP-код) при входе для защиты аккаунта.',
+    kz: 'Қосымша қорғаныс үшін кіру кезінде екінші қадам (TOTP-код).',
+  },
+  'settings.soon': { en: 'Soon', ru: 'Скоро', kz: 'Жақын арада' },
+  'settings.preferencesTitle': { en: 'Interface preferences', ru: 'Настройки интерфейса', kz: 'Интерфейс баптаулары' },
+  'settings.preferencesDesc': {
+    en: 'Personalize how the dashboard looks and which language it uses.',
+    ru: 'Персонализируйте внешний вид и язык интерфейса.',
+    kz: 'Интерфейстің сыртқы түрін және тілін баптаңыз.',
+  },
+  'settings.themeDesc': { en: 'Light surfaces by day, dark by night.', ru: 'Светлая днём, тёмная вечером.', kz: 'Күндіз ашық, түнде қара.' },
+  'settings.languageDesc': { en: 'Apply across the dashboard immediately.', ru: 'Применяется во всём интерфейсе сразу.', kz: 'Барлық интерфейске бірден қолданылады.' },
 
   // ── Common ──
   'common.loading': { en: 'Loading...', ru: 'Загрузка...', kz: 'Жүктелуде...' },

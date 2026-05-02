@@ -12,15 +12,28 @@ import {
   Gauge,
   HardDrive,
   Laptop,
+  LogIn,
   MemoryStick,
   Package,
-  PlayCircle,
   Plug,
+  PlayCircle,
+  Power,
+  Lock,
+  ShieldAlert,
+  Terminal,
+  FileCode,
+  Webhook,
+  UserPlus,
+  UserCog,
+  Tv,
+  FolderUp,
+  FolderDown,
   Server,
   Sparkles,
   Wifi,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const API_BASE = '/api';
@@ -81,6 +94,46 @@ function relativeTime(ts: string): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+interface EventVisual {
+  icon: LucideIcon;
+  tone: 'info' | 'ok' | 'warn' | 'danger' | 'muted';
+}
+
+function getEventVisual(type: string): EventVisual {
+  if (type.startsWith('alert')) return { icon: ShieldAlert, tone: 'danger' };
+  if (type === 'admin_login') return { icon: LogIn, tone: 'ok' };
+  if (type === 'admin_password_changed' || type === 'user_password_reset') return { icon: Lock, tone: 'warn' };
+  if (type === 'user_created') return { icon: UserPlus, tone: 'info' };
+  if (type === 'user_deleted') return { icon: UserCog, tone: 'danger' };
+  if (type === 'user_role_changed') return { icon: UserCog, tone: 'info' };
+  if (type === 'command_reboot') return { icon: Power, tone: 'warn' };
+  if (type === 'command_shutdown') return { icon: Power, tone: 'danger' };
+  if (type === 'command_lock') return { icon: Lock, tone: 'info' };
+  if (type === 'command_alarm') return { icon: BellRing, tone: 'warn' };
+  if (type === 'command_sent' || type === 'command_result') return { icon: Terminal, tone: 'info' };
+  if (type === 'screen_start') return { icon: Tv, tone: 'info' };
+  if (type === 'file_upload' || type === 'file_transfer') return { icon: FolderUp, tone: 'info' };
+  if (type === 'file_download') return { icon: FolderDown, tone: 'info' };
+  if (type === 'file_delete') return { icon: X, tone: 'danger' };
+  if (type === 'service_action') return { icon: Cpu, tone: 'info' };
+  if (type === 'wol_sent') return { icon: Plug, tone: 'info' };
+  if (type === 'script_created') return { icon: FileCode, tone: 'info' };
+  if (type.startsWith('webhook')) return { icon: Webhook, tone: 'info' };
+  if (type === 'group_created') return { icon: Package, tone: 'info' };
+  return { icon: Activity, tone: 'muted' };
+}
+
+function getEventDayKey(ts: string): { key: string; label: 'today' | 'yesterday' | 'older'; date: string } {
+  const d = new Date(ts);
+  const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const tt = todayStart.getTime();
+  const oneDay = 24 * 60 * 60 * 1000;
+  if (dayStart === tt) return { key: 'today', label: 'today', date: d.toLocaleDateString() };
+  if (dayStart === tt - oneDay) return { key: 'yesterday', label: 'yesterday', date: d.toLocaleDateString() };
+  return { key: d.toISOString().slice(0, 10), label: 'older', date: d.toLocaleDateString() };
 }
 
 const ONBOARD_DISMISSED_KEY = 'nx-onboard-dismissed';
@@ -409,19 +462,56 @@ export default function HomeDashboard() {
                 <span>{t('home.noActivity')}</span>
               </div>
             ) : (
-              <ul className="nx-event-list">
-                {events.slice(0, 8).map((event) => (
-                  <li key={event.id}>
-                    <span className="nx-event-dot" />
-                    <div className="min-w-0">
-                      <div className="text-[13px] truncate text-[color:var(--fg)]">{event.message}</div>
-                      <div className="num-mono text-[11px] text-[color:var(--fg-dim)] mt-0.5">
-                        {relativeTime(event.timestamp)}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              (() => {
+                const groups: { key: string; label: string; items: SystemEvent[] }[] = [];
+                const slice = events.slice(0, 12);
+                for (const ev of slice) {
+                  const meta = getEventDayKey(ev.timestamp);
+                  let g = groups.find((x) => x.key === meta.key);
+                  if (!g) {
+                    const labelText =
+                      meta.label === 'today'
+                        ? t('home.activityToday')
+                        : meta.label === 'yesterday'
+                          ? t('home.activityYesterday')
+                          : meta.date;
+                    g = { key: meta.key, label: labelText, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(ev);
+                }
+                return (
+                  <div className="nx-event-feed">
+                    {groups.map((g) => (
+                      <section key={g.key} className="nx-event-feed-day">
+                        <header className="nx-event-feed-day-head">
+                          <span>{g.label}</span>
+                          <span className="num-mono text-[10px]">{g.items.length}</span>
+                        </header>
+                        <ul className="nx-event-feed-list">
+                          {g.items.map((event) => {
+                            const v = getEventVisual(event.type);
+                            const Icon = v.icon;
+                            return (
+                              <li key={event.id} className={`nx-event-feed-item is-${v.tone}`}>
+                                <span className="nx-event-feed-icon">
+                                  <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="nx-event-feed-msg">{event.message}</div>
+                                  <div className="nx-event-feed-meta num-mono">
+                                    {relativeTime(event.timestamp)}
+                                  </div>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>
