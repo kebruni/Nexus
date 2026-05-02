@@ -173,12 +173,12 @@ export default function Devices() {
     <div className="nx-page">
       <header className="nx-page-head">
         <div>
-          <div className="nx-eyebrow">Inventory</div>
+          <div className="nx-eyebrow">{t('devices.eyebrow')}</div>
           <h1 className="text-[24px] font-bold tracking-tight text-[color:var(--fg-strong)] mt-1">
             {t('devices.title')}
           </h1>
           <p className="text-[13px] text-[color:var(--fg-muted)] mt-1">
-            {agents.length} {t('devices.connected')} · {onlineCount} online
+            {agents.length} {t('devices.connected')} · {onlineCount} {t('devices.online')}
           </p>
         </div>
 
@@ -188,7 +188,7 @@ export default function Devices() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search host, IP, agent ID…"
+              placeholder={t('devices.searchPlaceholder')}
               className="nx-search-input"
             />
           </div>
@@ -199,7 +199,7 @@ export default function Devices() {
                 onClick={() => setStatusFilter(v)}
                 className={`nx-segmented-item ${statusFilter === v ? 'is-active' : ''}`}
               >
-                {v === 'all' ? 'All' : v === 'online' ? 'Online' : 'Offline'}
+                {v === 'all' ? t('devices.filterAll') : v === 'online' ? t('devices.filterOnline') : t('devices.filterOffline')}
                 <span className="num-mono text-[10px] text-[color:var(--fg-dim)] ml-1.5">
                   {v === 'all' ? agents.length : v === 'online' ? onlineCount : agents.length - onlineCount}
                 </span>
@@ -212,7 +212,7 @@ export default function Devices() {
       <div className="nx-panel">
         <div className="nx-panel-head">
           <div className="nx-panel-title">
-            <Server className="w-4 h-4 text-[color:var(--accent)]" /> Agents
+            <Server className="w-4 h-4 text-[color:var(--accent)]" /> {t('devices.agentsPanel')}
             <span className="nx-tag ml-2">{sorted.length}</span>
           </div>
         </div>
@@ -220,15 +220,15 @@ export default function Devices() {
           <table className="nx-grid">
             <thead>
               <tr>
-                {renderTh('status', 'Status')}
-                {renderTh('host', 'Host')}
-                <th>Platform</th>
-                {renderTh('cpu', 'CPU')}
-                {renderTh('mem', 'Memory')}
-                {renderTh('disk', 'Disk')}
-                <th>Trend</th>
-                {renderTh('lat', 'Lat', 'right')}
-                {renderTh('last', 'Up', 'right')}
+                {renderTh('status', t('devices.colStatus'))}
+                {renderTh('host', t('devices.colHost'))}
+                <th>{t('devices.colPlatform')}</th>
+                {renderTh('cpu', t('devices.colCpu'))}
+                {renderTh('mem', t('devices.colMemory'))}
+                {renderTh('disk', t('devices.colDisk'))}
+                <th>{t('devices.colTrend')}</th>
+                {renderTh('lat', t('devices.colLat'), 'right')}
+                {renderTh('last', t('devices.colUp'), 'right')}
               </tr>
             </thead>
             <tbody>

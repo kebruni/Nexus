@@ -75,25 +75,28 @@
 }
 
 [data-theme="light"] {
-  --bg-app:        #F6F8FB;
-  --bg-rail:       #FFFFFF;
-  --bg-panel:      #FFFFFF;
-  --bg-panel-2:    #F2F4F8;
-  --bg-elevated:   #EEF1F6;
-  --bg-input:      #FFFFFF;
+  /* Warm "paper" palette — softer than pure white, easier on the eyes for long
+     sessions. App background is a subtle warm off-white; panels lift slightly
+     above it so the hierarchy stays visible without harsh contrast. */
+  --bg-app:        #F1EEE7;        /* warm parchment */
+  --bg-rail:       #F7F4ED;        /* sidebar — slightly lighter */
+  --bg-panel:      #FAF8F1;        /* primary panel — warm cream */
+  --bg-panel-2:    #EFEBE2;        /* nested panel */
+  --bg-elevated:   #E8E3D8;        /* hover / dropdown */
+  --bg-input:      #FBF9F2;        /* input fields */
   --bg-grid-row:   transparent;
-  --bg-grid-row-hover: rgba(15,23,42,0.04);
-  --bg-tooltip:    #0B0D10;
+  --bg-grid-row-hover: rgba(70,55,30,0.05);
+  --bg-tooltip:    #1F1B14;
 
-  --border:        rgba(15,23,42,0.08);
-  --border-strong: rgba(15,23,42,0.14);
+  --border:        rgba(70,55,30,0.10);
+  --border-strong: rgba(70,55,30,0.18);
   --border-accent: rgba(91,127,255,0.40);
-  --divider:       rgba(15,23,42,0.05);
+  --divider:       rgba(70,55,30,0.07);
 
-  --fg:            #1B2230;
-  --fg-strong:     #0B0D10;
-  --fg-muted:      #5B6473;
-  --fg-dim:        #94A3B8;
+  --fg:            #28241D;        /* warm near-black, not pure */
+  --fg-strong:     #181612;        /* warm darkest */
+  --fg-muted:      #6B6557;        /* warm muted */
+  --fg-dim:        #9C9485;        /* warm dim */
 
   --accent-soft:   rgba(91,127,255,0.10);
   --warm-soft:     rgba(255,120,73,0.12);
@@ -102,11 +105,11 @@
   --warn-soft:     rgba(234,179,8,0.12);
   --danger-soft:   rgba(244,92,110,0.10);
 
-  --scrollbar-thumb: rgba(15,23,42,0.20);
-  --scrollbar-thumb-hover: rgba(15,23,42,0.32);
+  --scrollbar-thumb: rgba(70,55,30,0.22);
+  --scrollbar-thumb-hover: rgba(70,55,30,0.34);
 
-  --shadow-panel: 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.06);
-  --shadow-pop:   0 18px 40px rgba(15,23,42,0.18);
+  --shadow-panel: 0 1px 2px rgba(70,55,30,0.04), 0 4px 14px rgba(70,55,30,0.08);
+  --shadow-pop:   0 18px 40px rgba(70,55,30,0.20);
 }
 
 /* Scrollbar -------------------------------------------------- */
@@ -141,8 +144,8 @@ body {
 
 [data-theme="light"] body {
   background:
-    radial-gradient(1000px 600px at 100% -20%, rgba(91,127,255,0.10), transparent 60%),
-    radial-gradient(800px 500px at -10% 110%, rgba(255,120,73,0.07), transparent 60%),
+    radial-gradient(1100px 700px at 100% -20%, rgba(120,140,220,0.12), transparent 60%),
+    radial-gradient(900px 550px at -10% 110%, rgba(220,150,90,0.10), transparent 60%),
     var(--bg-app);
 }
 
@@ -286,6 +289,7 @@ body {
 .nx-pill.is-danger  { color: var(--danger); background: var(--danger-soft); border-color: rgba(244,92,110,0.30); }
 .nx-pill.is-accent  { color: var(--accent); background: var(--accent-soft); border-color: rgba(124,140,255,0.30); }
 .nx-pill.is-muted   { color: var(--fg-muted); background: rgba(255,255,255,0.04); border-color: var(--border); }
+[data-theme="light"] .nx-pill.is-muted { background: rgba(70,55,30,0.06); }
 
 .nx-pill.is-pulse .nx-dot {
   animation: nx-pulse 1.6s ease-out infinite;
@@ -305,7 +309,7 @@ body {
   border-radius: 999px;
   overflow: hidden;
 }
-[data-theme="light"] .nx-bar { background: rgba(15,23,42,0.08); }
+[data-theme="light"] .nx-bar { background: rgba(70,55,30,0.10); }
 .nx-bar > span {
   position: absolute;
   inset: 0;
@@ -621,7 +625,7 @@ body {
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
-[data-theme="light"] .nx-overlay { background: rgba(15, 23, 42, 0.35); }
+[data-theme="light"] .nx-overlay { background: rgba(40, 30, 15, 0.38); }
 .nx-overlay.is-open { opacity: 1; pointer-events: auto; }
 
 @media (min-width: 901px) {
@@ -875,7 +879,7 @@ body {
 }
 [data-theme="light"] .nx-login-brand {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.0), rgba(255,255,255,0.6)),
+    linear-gradient(180deg, rgba(250,248,241,0.0), rgba(250,248,241,0.55)),
     radial-gradient(800px 500px at 0% 0%, var(--accent-soft), transparent 60%),
     radial-gradient(700px 500px at 110% 110%, var(--warm-soft), transparent 60%),
     var(--bg-rail);

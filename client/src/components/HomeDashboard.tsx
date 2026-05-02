@@ -177,7 +177,7 @@ export default function HomeDashboard() {
     <div className="nx-page">
       <header className="nx-page-head">
         <div>
-          <div className="nx-eyebrow">Overview</div>
+          <div className="nx-eyebrow">{t('home.eyebrow')}</div>
           <h1 className="text-[24px] font-bold tracking-tight text-[color:var(--fg-strong)] mt-1">
             {t('home.title')}
           </h1>
@@ -200,7 +200,7 @@ export default function HomeDashboard() {
           value={animTotal}
           icon={<Laptop className="w-4 h-4" />}
           accent="accent"
-          sub={`${animOnline} online · ${agents.length - animOnline} offline`}
+          sub={t('home.onlineOfflineSplit', { online: animOnline, offline: agents.length - animOnline })}
           spark={cpuTrend}
         />
         <KpiCard
@@ -209,28 +209,28 @@ export default function HomeDashboard() {
           unit={`/${animTotal}`}
           icon={<Wifi className="w-4 h-4" />}
           accent="ok"
-          sub={`${onlinePct}% reachable`}
+          sub={t('home.reachable', { n: onlinePct })}
         />
         <KpiCard
-          label="Avg CPU"
+          label={t('home.avgCpu')}
           value={fleetCpu.toFixed(1)}
           unit="%"
           icon={<Cpu className="w-4 h-4" />}
           accent={fleetCpu > 80 ? 'danger' : fleetCpu > 50 ? 'warn' : 'accent'}
-          sub="cluster load"
+          sub={t('home.clusterLoad')}
           spark={cpuTrend}
         />
         <KpiCard
-          label="Avg Memory"
+          label={t('home.avgMemory')}
           value={fleetMem.toFixed(1)}
           unit="%"
           icon={<MemoryStick className="w-4 h-4" />}
           accent={fleetMem > 85 ? 'danger' : fleetMem > 65 ? 'warn' : 'warm'}
-          sub="cluster pressure"
+          sub={t('home.clusterPressure')}
           spark={memTrend}
         />
         <KpiCard
-          label="Network I/O"
+          label={t('home.networkIO')}
           value={netTrend.length ? netTrend[netTrend.length - 1].toFixed(1) : '0'}
           unit="KB/s"
           icon={<Activity className="w-4 h-4" />}
@@ -243,7 +243,7 @@ export default function HomeDashboard() {
           value={animAlerts}
           icon={<BellRing className="w-4 h-4" />}
           accent={alerts.length > 0 ? 'danger' : 'accent'}
-          sub={alerts.length > 0 ? 'requires attention' : 'all clear'}
+          sub={alerts.length > 0 ? t('home.requiresAttention') : t('home.allClear')}
         />
       </section>
 
@@ -254,7 +254,7 @@ export default function HomeDashboard() {
           <div className="nx-panel-head">
             <div className="nx-panel-title">
               <Gauge className="w-4 h-4 text-[color:var(--accent)]" />
-              Fleet load
+              {t('home.fleetLoad')}
             </div>
             <button
               onClick={() => navigate('/dashboard/devices')}
@@ -267,7 +267,7 @@ export default function HomeDashboard() {
             {agents.length === 0 ? (
               <div className="nx-empty">
                 <Server className="w-6 h-6 text-[color:var(--fg-dim)] mb-2" />
-                <span>No agents connected yet</span>
+                <span>{t('home.noAgents')}</span>
               </div>
             ) : (
               <div className="nx-fleet-list">
@@ -286,7 +286,7 @@ export default function HomeDashboard() {
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={`nx-pill ${isOnline ? 'is-ok is-pulse' : 'is-muted'}`}>
                             <span className="nx-dot" />
-                            {isOnline ? 'live' : 'offline'}
+                            {isOnline ? t('home.statusLive') : t('home.statusOffline')}
                           </span>
                           <span className="text-[13px] font-semibold truncate text-[color:var(--fg-strong)]">
                             {agent.hostname}
@@ -295,7 +295,7 @@ export default function HomeDashboard() {
                             {agent.ip || agent.id.slice(0, 14)}
                           </span>
                         </div>
-                        <span className="nx-tag">{agent.platform || 'unknown'}</span>
+                        <span className="nx-tag">{agent.platform || t('home.platformUnknown')}</span>
                       </div>
                       <div className="nx-fleet-row-bars">
                         <Stat icon={<Cpu className="w-3 h-3" />} label="CPU" value={cpu} accent="accent" />
@@ -359,7 +359,7 @@ export default function HomeDashboard() {
           />
           <ActionCard
             title={t('home.recentActivity')}
-            sub={`${events.length} recent events · ${alerts.length} active alerts`}
+            sub={t('home.eventsAlertsSummary', { events: events.length, alerts: alerts.length })}
             cta={t('home.viewAll')}
             icon={<Activity className="w-5 h-5" />}
             onClick={() => navigate('/dashboard/events')}
@@ -524,10 +524,10 @@ function InstallBanner({
           <span>{t('home.downloadAgent')}</span>
           {available ? (
             <span className="nx-pill is-ok">
-              <CheckCircle2 className="w-3 h-3" /> Ready
+              <CheckCircle2 className="w-3 h-3" /> {t('home.installerReady')}
             </span>
           ) : (
-            <span className="nx-pill is-warn">Building…</span>
+            <span className="nx-pill is-warn">{t('home.installerBuilding')}</span>
           )}
           {available && installer?.version && (
             <span className="nx-tag num-mono">v{installer.version}</span>
@@ -543,12 +543,12 @@ function InstallBanner({
                 </span>
               </span>
               <span className="nx-install-banner-meta-item">
-                <span className="text-[color:var(--fg-dim)]">Windows x64 · NSIS installer</span>
+                <span className="text-[color:var(--fg-dim)]">{t('home.installerOs')}</span>
               </span>
               {installer?.modified && (
                 <span className="nx-install-banner-meta-item">
                   <span className="text-[color:var(--fg-dim)]">
-                    Updated {relativeTime(installer.modified)}
+                    {t('home.installerUpdated', { when: relativeTime(installer.modified) })}
                   </span>
                 </span>
               )}

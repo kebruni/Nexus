@@ -142,9 +142,9 @@ export default function Layout({ onLogout }: LayoutProps) {
 
     const onAgentsList = (list: Agent[]) => setAgents(list);
     const onConnected = (agent: { hostname: string }) => {
-      toast(`${agent.hostname} ${t('devices.ready').toLowerCase()}`, 'success');
+      toast(t('layout.toastReady', { host: agent.hostname }), 'success');
     };
-    const onDisconnected = () => toast(`Agent disconnected`, 'warning');
+    const onDisconnected = () => toast(t('layout.toastDisconnected'), 'warning');
     const onSocketConnect = () => setSocketConnected(true);
     const onSocketDisconnect = () => setSocketConnected(false);
     const onMetrics = ({ agentId, metrics }: { agentId: string; metrics: Agent['metrics'] }) => {
@@ -201,11 +201,11 @@ export default function Layout({ onLogout }: LayoutProps) {
             <div className="min-w-0">
               <div className="nx-brand text-[15px] leading-none">Nexus</div>
               <div className="text-[10px] text-[color:var(--fg-dim)] tracking-[0.16em] uppercase mt-1 font-semibold">
-                Control&nbsp;Hub
+                {t('layout.controlHub')}
               </div>
             </div>
           </div>
-          <button onClick={closeSidebar} className="nx-btn nx-btn-icon nx-btn-sm nx-rail-close" aria-label="Close">
+          <button onClick={closeSidebar} className="nx-btn nx-btn-icon nx-btn-sm nx-rail-close" aria-label={t('layout.closeSidebar')}>
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -230,14 +230,14 @@ export default function Layout({ onLogout }: LayoutProps) {
         <div className="nx-rail-foot">
           <div className="nx-rail-status">
             <div className="flex items-center justify-between">
-              <span className="nx-eyebrow">Cluster</span>
+              <span className="nx-eyebrow">{t('layout.cluster')}</span>
               <span className={`nx-pill ${socketConnected ? 'is-ok is-pulse' : 'is-danger'}`}>
                 <span className="nx-dot" />
-                {socketConnected ? 'Live' : 'Down'}
+                {socketConnected ? t('layout.statusLive') : t('layout.statusDown')}
               </span>
             </div>
             <div className="flex items-center justify-between mt-2">
-              <span className="text-[12px] text-[color:var(--fg-muted)]">Agents</span>
+              <span className="text-[12px] text-[color:var(--fg-muted)]">{t('layout.agents')}</span>
               <span className="num-mono text-[13px]">
                 <span className="text-[color:var(--ok)]">{onlineCount}</span>
                 <span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span>
@@ -256,7 +256,7 @@ export default function Layout({ onLogout }: LayoutProps) {
         <button
           onClick={() => setSidebarOpen(true)}
           className="nx-btn nx-btn-icon nx-btn-sm nx-topbar-burger"
-          aria-label="Open sidebar"
+          aria-label={t('layout.openSidebar')}
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -268,9 +268,9 @@ export default function Layout({ onLogout }: LayoutProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <div className="nx-chip hidden md:inline-flex" title="Connected agents">
+          <div className="nx-chip hidden md:inline-flex" title={t('layout.connectedAgents')}>
             {socketConnected ? <Wifi className="w-3.5 h-3.5 text-[color:var(--ok)]" /> : <WifiOff className="w-3.5 h-3.5 text-[color:var(--danger)]" />}
-            <span className="text-[color:var(--fg-muted)]">Online</span>
+            <span className="text-[color:var(--fg-muted)]">{t('layout.online')}</span>
             <strong>{onlineCount}<span className="text-[color:var(--fg-dim)]"> / {totalAgents}</span></strong>
           </div>
 
@@ -292,7 +292,7 @@ export default function Layout({ onLogout }: LayoutProps) {
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             className="nx-btn nx-btn-icon nx-btn-sm"
             title={t('settings.theme')}
-            aria-label="Toggle theme"
+            aria-label={t('layout.toggleTheme')}
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>

@@ -153,48 +153,47 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
             <div>
               <div className="nx-brand text-2xl leading-none">Nexus</div>
-              <div className="nx-eyebrow text-[color:var(--fg-muted)] mt-1.5">Remote Control Hub</div>
+              <div className="nx-eyebrow text-[color:var(--fg-muted)] mt-1.5">{t('login.brandTagline')}</div>
             </div>
           </div>
 
           <h2 className="nx-login-headline">
-            Operate every endpoint
+            {t('login.headlineLine1')}
             <br />
-            <span className="nx-brand">in real-time.</span>
+            <span className="nx-brand">{t('login.headlineLine2')}</span>
           </h2>
           <p className="nx-login-sub">
-            Centralised monitoring, command execution and live diagnostics for your fleet — everything streams over a single
-            secure WebSocket.
+            {t('login.heroSub')}
           </p>
 
           <div className="nx-login-features">
             <div className="nx-login-feature">
               <Activity className="w-4 h-4 text-[color:var(--accent)]" />
               <div>
-                <div className="text-[13px] font-semibold">Live telemetry</div>
-                <div className="text-[11px] text-[color:var(--fg-muted)]">CPU · RAM · Disk · Net @ 3s</div>
+                <div className="text-[13px] font-semibold">{t('login.featLiveTitle')}</div>
+                <div className="text-[11px] text-[color:var(--fg-muted)]">{t('login.featLiveSub')}</div>
               </div>
             </div>
             <div className="nx-login-feature">
               <Cpu className="w-4 h-4 text-[color:var(--info)]" />
               <div>
-                <div className="text-[13px] font-semibold">Remote control</div>
-                <div className="text-[11px] text-[color:var(--fg-muted)]">Shell · Files · Screen</div>
+                <div className="text-[13px] font-semibold">{t('login.featRemoteTitle')}</div>
+                <div className="text-[11px] text-[color:var(--fg-muted)]">{t('login.featRemoteSub')}</div>
               </div>
             </div>
             <div className="nx-login-feature">
               <ShieldCheck className="w-4 h-4 text-[color:var(--ok)]" />
               <div>
-                <div className="text-[13px] font-semibold">Role-based access</div>
-                <div className="text-[11px] text-[color:var(--fg-muted)]">Admin · Operator · Viewer</div>
+                <div className="text-[13px] font-semibold">{t('login.featRoleTitle')}</div>
+                <div className="text-[11px] text-[color:var(--fg-muted)]">{t('login.featRoleSub')}</div>
               </div>
             </div>
           </div>
 
           <div className="nx-login-foot">
-            <span className="nx-eyebrow">Status</span>
+            <span className="nx-eyebrow">{t('login.statusLabel')}</span>
             <span className="nx-pill is-ok is-pulse">
-              <span className="nx-dot" /> All systems operational
+              <span className="nx-dot" /> {t('login.allOk')}
             </span>
           </div>
         </div>
@@ -204,13 +203,13 @@ export default function Login({ onLogin }: LoginProps) {
       <main className="nx-login-form-wrap">
         <div className="nx-login-form">
           <div className="nx-login-form-head">
-            <span className="nx-eyebrow">{pendingToken ? t('login.changePasswordTitle') : t('login.adminLogin')}</span>
+            <span className="nx-eyebrow">{t('login.adminLogin')}</span>
             <h1 className="text-[28px] font-bold tracking-tight mt-2 text-[color:var(--fg-strong)]">
-              {pendingToken ? t('login.changePasswordSubtitle') : t('login.title')}
+              {pendingToken ? t('login.changePasswordTitle') : t('login.title')}
             </h1>
-            {!pendingToken && (
-              <p className="text-[13px] text-[color:var(--fg-muted)] mt-1.5">{t('login.subtitle')}</p>
-            )}
+            <p className="text-[13px] text-[color:var(--fg-muted)] mt-1.5">
+              {pendingToken ? t('login.changePasswordSubtitle') : t('login.subtitle')}
+            </p>
           </div>
 
           {error && (
@@ -285,7 +284,7 @@ export default function Login({ onLogin }: LoginProps) {
               </button>
 
               <div className="nx-login-default">
-                <span className="nx-eyebrow text-[color:var(--fg-dim)]">Default</span>
+                <span className="nx-eyebrow text-[color:var(--fg-dim)]">{t('login.defaultLabel')}</span>
                 <code className="num-mono text-[12px] ml-2">admin / admin123</code>
               </div>
             </form>
