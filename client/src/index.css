@@ -979,16 +979,6 @@ body {
   font-weight: 500;
 }
 
-.nx-login-default {
-  margin-top: 18px;
-  padding: 8px 10px;
-  border-radius: var(--r-sm);
-  background: var(--bg-panel-2);
-  border: 1px dashed var(--border);
-  color: var(--fg-muted);
-  text-align: center;
-}
-
 @media (max-width: 900px) {
   .nx-login-brand { display: none; }
   .nx-login-form-wrap { padding: 24px; }

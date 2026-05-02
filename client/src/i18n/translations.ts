@@ -360,13 +360,11 @@ export const translations = {
   'login.featRoleSub': { en: 'Admin · Operator · Viewer', ru: 'Админ · Оператор · Зритель', kz: 'Әкімші · Оператор · Қарап шығушы' },
   'login.statusLabel': { en: 'Status', ru: 'Статус', kz: 'Күй' },
   'login.allOk': { en: 'All systems operational', ru: 'Все системы работают', kz: 'Барлық жүйелер жұмыс істеп тұр' },
-  'login.defaultLabel': { en: 'Default', ru: 'По умолчанию', kz: 'Әдепкі' },
   'login.adminLogin': { en: 'Administrator Login', ru: 'Вход администратора', kz: 'Әкімші кіруі' },
   'login.username': { en: 'Username', ru: 'Имя пользователя', kz: 'Пайдаланушы аты' },
   'login.password': { en: 'Password', ru: 'Пароль', kz: 'Құпия сөз' },
   'login.signIn': { en: 'Sign In', ru: 'Войти', kz: 'Кіру' },
   'login.signingIn': { en: 'Signing in...', ru: 'Входим...', kz: 'Кіруде...' },
-  'login.default': { en: 'Default: admin / admin123', ru: 'По умолчанию: admin / admin123', kz: 'Әдепкі: admin / admin123' },
   'login.changePasswordTitle': {
     en: 'Set a new password',
     ru: 'Задайте новый пароль',
