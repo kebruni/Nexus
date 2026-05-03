@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSocket } from '../api/socket';
 import type { Agent, Alert, SystemEvent } from '../types';
@@ -11,7 +11,6 @@ import {
   Download,
   Gauge,
   HardDrive,
-  Laptop,
   LogIn,
   MemoryStick,
   Package,
@@ -30,35 +29,12 @@ import {
   FolderDown,
   Server,
   Sparkles,
-  Wifi,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const API_BASE = '/api';
-
-function useCountUp(target: number, duration = 600) {
-  const [value, setValue] = useState(0);
-  const prev = useRef(0);
-  useEffect(() => {
-    if (target === prev.current) return;
-    const start = prev.current;
-    const diff = target - start;
-    const t0 = performance.now();
-    let raf: number;
-    const step = (now: number) => {
-      const p = Math.min((now - t0) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(start + diff * eased));
-      if (p < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    prev.current = target;
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
 
 type InstallerInfo = {
   available: boolean;
@@ -74,15 +50,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function buildSparkPath(values: number[], width = 100, height = 32) {
-  if (values.length < 2) return '';
-  const max = Math.max(...values, 1);
-  const step = width / (values.length - 1);
-  return values
-    .map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(2)},${(height - (v / max) * (height - 2)).toFixed(2)}`)
-    .join(' ');
 }
 
 function relativeTime(ts: string): string {
@@ -145,9 +112,6 @@ export default function HomeDashboard() {
   const [installer, setInstaller] = useState<InstallerInfo | null>(null);
   const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [eventsLoaded, setEventsLoaded] = useState(false);
-  const [cpuTrend, setCpuTrend] = useState<number[]>([]);
-  const [memTrend, setMemTrend] = useState<number[]>([]);
-  const [netTrend, setNetTrend] = useState<number[]>([]);
   const [onboardDismissed, setOnboardDismissed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(ONBOARD_DISMISSED_KEY) === '1';
@@ -230,45 +194,6 @@ export default function HomeDashboard() {
     };
   }, []);
 
-  // Aggregate fleet trend (push average load every refresh)
-  useEffect(() => {
-    if (agents.length === 0) return;
-    const onlineAgents = agents.filter((a) => a.status === 'online' && a.metrics);
-    if (onlineAgents.length === 0) return;
-    const avgCpu =
-      onlineAgents.reduce((acc, a) => acc + (a.metrics?.cpu?.load ?? 0), 0) / onlineAgents.length;
-    const avgMem =
-      onlineAgents.reduce((acc, a) => acc + (a.metrics?.memory?.usedPercent ?? 0), 0) / onlineAgents.length;
-    const totalNet =
-      onlineAgents.reduce(
-        (acc, a) => acc + (a.metrics?.network?.rxSec ?? 0) + (a.metrics?.network?.txSec ?? 0),
-        0,
-      ) / 1024;
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCpuTrend((prev) => [...prev.slice(-29), avgCpu]);
-    setMemTrend((prev) => [...prev.slice(-29), avgMem]);
-    setNetTrend((prev) => [...prev.slice(-29), totalNet]);
-  }, [agents]);
-
-  const onlineCount = agents.filter((a) => a.status === 'online').length;
-  const animTotal = useCountUp(agents.length);
-  const animOnline = useCountUp(onlineCount);
-  const animAlerts = useCountUp(alerts.length);
-
-  const fleetCpu = useMemo(() => {
-    const online = agents.filter((a) => a.status === 'online' && a.metrics);
-    if (online.length === 0) return 0;
-    return online.reduce((acc, a) => acc + (a.metrics?.cpu?.load ?? 0), 0) / online.length;
-  }, [agents]);
-  const fleetMem = useMemo(() => {
-    const online = agents.filter((a) => a.status === 'online' && a.metrics);
-    if (online.length === 0) return 0;
-    return online.reduce((acc, a) => acc + (a.metrics?.memory?.usedPercent ?? 0), 0) / online.length;
-  }, [agents]);
-
-  const onlinePct = agents.length === 0 ? 0 : Math.round((onlineCount / agents.length) * 100);
-
   return (
     <div className="nx-page">
       <header className="nx-page-head">
@@ -293,60 +218,6 @@ export default function HomeDashboard() {
 
       {/* Prominent agent download CTA */}
       <InstallBanner installer={installer} t={t} />
-
-      {/* KPI strip */}
-      <section className="nx-kpi-strip">
-        <KpiCard
-          label={t('home.totalDevices')}
-          value={animTotal}
-          icon={<Laptop className="w-4 h-4" />}
-          accent="accent"
-          sub={t('home.onlineOfflineSplit', { online: animOnline, offline: agents.length - animOnline })}
-          spark={cpuTrend}
-        />
-        <KpiCard
-          label={t('home.onlineNow')}
-          value={`${animOnline}`}
-          unit={`/${animTotal}`}
-          icon={<Wifi className="w-4 h-4" />}
-          accent="ok"
-          sub={t('home.reachable', { n: onlinePct })}
-        />
-        <KpiCard
-          label={t('home.avgCpu')}
-          value={fleetCpu.toFixed(1)}
-          unit="%"
-          icon={<Cpu className="w-4 h-4" />}
-          accent={fleetCpu > 80 ? 'danger' : fleetCpu > 50 ? 'warn' : 'accent'}
-          sub={t('home.clusterLoad')}
-          spark={cpuTrend}
-        />
-        <KpiCard
-          label={t('home.avgMemory')}
-          value={fleetMem.toFixed(1)}
-          unit="%"
-          icon={<MemoryStick className="w-4 h-4" />}
-          accent={fleetMem > 85 ? 'danger' : fleetMem > 65 ? 'warn' : 'warm'}
-          sub={t('home.clusterPressure')}
-          spark={memTrend}
-        />
-        <KpiCard
-          label={t('home.networkIO')}
-          value={netTrend.length ? netTrend[netTrend.length - 1].toFixed(1) : '0'}
-          unit="KB/s"
-          icon={<Activity className="w-4 h-4" />}
-          accent="warm"
-          sub="rx + tx"
-          spark={netTrend}
-        />
-        <KpiCard
-          label={t('home.activeAlerts')}
-          value={animAlerts}
-          icon={<BellRing className="w-4 h-4" />}
-          accent={alerts.length > 0 ? 'danger' : 'accent'}
-          sub={alerts.length > 0 ? t('home.requiresAttention') : t('home.allClear')}
-        />
-      </section>
 
       {/* Main grid */}
       <section className="nx-page-grid">
@@ -541,77 +412,6 @@ export default function HomeDashboard() {
 }
 
 /* ---------- subcomponents ---------- */
-
-function KpiCard({
-  label,
-  value,
-  unit,
-  icon,
-  accent,
-  sub,
-  spark,
-}: {
-  label: string;
-  value: string | number;
-  unit?: string;
-  icon?: React.ReactNode;
-  accent?: 'accent' | 'warm' | 'ok' | 'warn' | 'danger';
-  sub?: string;
-  spark?: number[];
-}) {
-  return (
-    <div className={`nx-kpi ${accent ? `is-${accent}` : ''}`}>
-      <div className="flex items-center justify-between">
-        <span className="nx-kpi-label">
-          {icon} {label}
-        </span>
-      </div>
-      <div className="nx-kpi-value">
-        {value}
-        {unit && <span className="nx-kpi-unit">{unit}</span>}
-      </div>
-      {spark && spark.length > 1 ? (
-        <svg className="nx-spark mt-1" viewBox="0 0 100 32" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id={`grad-${accent}`} x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="0%"
-                stopColor={
-                  accent === 'warm' ? 'var(--warm)' :
-                  accent === 'ok' ? 'var(--ok)' :
-                  accent === 'warn' ? 'var(--warn)' :
-                  accent === 'danger' ? 'var(--danger)' :
-                  'var(--accent)'
-                }
-                stopOpacity="0.5"
-              />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-          </defs>
-          <path
-            d={`${buildSparkPath(spark)} L100,32 L0,32 Z`}
-            fill={`url(#grad-${accent})`}
-            stroke="none"
-          />
-          <path
-            d={buildSparkPath(spark)}
-            fill="none"
-            stroke={
-              accent === 'warm' ? 'var(--warm)' :
-              accent === 'ok' ? 'var(--ok)' :
-              accent === 'warn' ? 'var(--warn)' :
-              accent === 'danger' ? 'var(--danger)' :
-              'var(--accent)'
-            }
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      ) : null}
-      {sub && <div className="nx-kpi-sub">{sub}</div>}
-    </div>
-  );
-}
 
 function Stat({
   icon,
