@@ -1,9 +1,10 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getSocket } from '../api/socket';
-import type { Agent, Metrics } from '../types';
+import type { Agent, Metrics, SystemEvent } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import {
+  Activity,
   ArrowLeft,
   Cpu,
   MemoryStick,
@@ -21,6 +22,7 @@ import {
   ArrowUp,
   Fan,
   Lock,
+  ListTree,
   Volume2,
 } from 'lucide-react';
 import {
@@ -377,7 +379,7 @@ export default function ComputerDetail() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'monitoring' && <MonitoringTab data={chartData} metrics={m} />}
+        {activeTab === 'monitoring' && <MonitoringTab data={chartData} metrics={m} agentId={id!} />}
         {activeTab === 'services' && <Services agentId={id!} />}
       </div>
     </div>
@@ -468,9 +470,11 @@ function StatCard({
 function MonitoringTab({
   data,
   metrics,
+  agentId,
 }: {
   data: { time: number; cpu: number; ram: number; disk: number; netRx: number; netTx: number; gpu: number; gpuTemp: number }[];
   metrics: Metrics | null;
+  agentId: string;
 }) {
   const { isDark } = useTheme();
   const hasGpu = metrics?.gpus && metrics.gpus.length > 0;
@@ -654,36 +658,73 @@ function MonitoringTab({
         </ChartCard>
       )}
 
-      {/* ── Disks ── */}
-      {metrics && metrics.disk.disks.length > 0 && (
-        <div className="section-card">
-          <SectionHeader icon={<HardDrive className="w-4 h-4" />} color="#f97316" label="Disk Partitions" />
-          <div className="space-y-3">
-            {metrics.disk.disks.map((disk, i) => {
-              const p = disk.usedPercent;
-              const barCls = p > 90 ? 'from-red-500 to-rose-600' : p > 70 ? 'from-orange-500 to-amber-500' : 'from-sky-500 to-blue-500';
-              return (
-                <div key={i}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`text-[13px] ${isDark ? 'text-white' : 'text-gray-900'} font-medium`}>{disk.mount} <span className={`${isDark ? 'text-zinc-600' : 'text-gray-400'} text-xs`}>({disk.fs})</span></span>
-                    <span className="text-[11px] font-mono text-zinc-500">
-                      {formatBytes(disk.used)}<span className="text-zinc-700"> / </span>{formatBytes(disk.size)}
-                      <span className={`ml-1.5 font-bold ${p > 90 ? 'text-red-400' : p > 70 ? 'text-orange-400' : 'text-sky-400'}`}>{p.toFixed(1)}%</span>
-                    </span>
+      {/* ── Disks + Memory side-by-side on wide screens ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {metrics && metrics.disk.disks.length > 0 && (
+          <div className="section-card">
+            <SectionHeader icon={<HardDrive className="w-4 h-4" />} color="#f97316" label="Disk Partitions" />
+            <div className="space-y-3">
+              {metrics.disk.disks.map((disk, i) => {
+                const p = disk.usedPercent;
+                const barCls = p > 90 ? 'from-red-500 to-rose-600' : p > 70 ? 'from-orange-500 to-amber-500' : 'from-sky-500 to-blue-500';
+                return (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[13px] ${isDark ? 'text-white' : 'text-gray-900'} font-medium`}>{disk.mount} <span className={`${isDark ? 'text-zinc-600' : 'text-gray-400'} text-xs`}>({disk.fs})</span></span>
+                      <span className="text-[11px] font-mono text-zinc-500">
+                        {formatBytes(disk.used)}<span className="text-zinc-700"> / </span>{formatBytes(disk.size)}
+                        <span className={`ml-1.5 font-bold ${p > 90 ? 'text-red-400' : p > 70 ? 'text-orange-400' : 'text-sky-400'}`}>{p.toFixed(1)}%</span>
+                      </span>
+                    </div>
+                    <ProgressBar value={p} color={barCls} height="h-[6px]" />
                   </div>
-                  <ProgressBar value={p} color={barCls} height="h-[6px]" />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {metrics && (
+          <div className="section-card">
+            <SectionHeader icon={<MemoryStick className="w-4 h-4" />} color="#a855f7" label="Memory" />
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-zinc-500">Physical Memory</span>
+                <span className="text-[11px] font-mono text-purple-400">{formatBytes(metrics.memory.used)} / {formatBytes(metrics.memory.total)}</span>
+              </div>
+              <ProgressBar value={metrics.memory.usedPercent} color="from-purple-500 to-violet-500" height="h-[6px]" />
+            </div>
+            {metrics.memory.swapTotal > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] text-zinc-500">Swap</span>
+                  <span className="text-[11px] font-mono text-orange-400">{formatBytes(metrics.memory.swapUsed)} / {formatBytes(metrics.memory.swapTotal)}</span>
+                </div>
+                <ProgressBar value={metrics.memory.swapTotal > 0 ? (metrics.memory.swapUsed / metrics.memory.swapTotal * 100) : 0} color="from-orange-500 to-amber-500" height="h-[3px]" />
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <MiniBox label="Free" value={formatBytes(metrics.memory.free)} color="#10b981" />
+              <MiniBox label="Available" value={formatBytes(metrics.memory.available)} color="#3b82f6" />
+              <MiniBox label="Cached" value={formatBytes(Math.max(0, metrics.memory.total - metrics.memory.used - metrics.memory.free))} color="#8b5cf6" />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── CPU Cores ── */}
       {metrics && metrics.cpu.cores.length > 0 && (
         <div className="section-card">
           <SectionHeader icon={<Cpu className="w-4 h-4" />} color="#3b82f6" label={`CPU Cores (${metrics.cpu.cores.length})`} />
-          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-2">
+          <div className={`grid gap-2 ${
+            metrics.cpu.cores.length === 1
+              ? 'grid-cols-1'
+              : metrics.cpu.cores.length === 2
+                ? 'grid-cols-2'
+                : metrics.cpu.cores.length <= 4
+                  ? 'grid-cols-2 sm:grid-cols-4'
+                  : 'grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12'
+          }`}>
             {metrics.cpu.cores.map((core) => {
               const l = core.load;
               const clr = l > 90 ? '#ef4444' : l > 70 ? '#f97316' : l > 40 ? '#3b82f6' : '#10b981';
@@ -701,35 +742,199 @@ function MonitoringTab({
         </div>
       )}
 
-      {/* ── Memory ── */}
-      {metrics && (
-        <div className="section-card">
-          <SectionHeader icon={<MemoryStick className="w-4 h-4" />} color="#a855f7" label="Memory" />
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] text-zinc-500">Physical Memory</span>
-              <span className="text-[11px] font-mono text-purple-400">{formatBytes(metrics.memory.used)} / {formatBytes(metrics.memory.total)}</span>
-            </div>
-            <ProgressBar value={metrics.memory.usedPercent} color="from-purple-500 to-violet-500" height="h-[6px]" />
-          </div>
-          {metrics.memory.swapTotal > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] text-zinc-500">Swap</span>
-                <span className="text-[11px] font-mono text-orange-400">{formatBytes(metrics.memory.swapUsed)} / {formatBytes(metrics.memory.swapTotal)}</span>
+      {/* ── Top Processes + Recent Events side-by-side on wide screens ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <TopProcessesPanel agentId={agentId} />
+        <AgentEventsPanel agentId={agentId} />
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────
+   TOP PROCESSES — live top-8 by CPU% for this agent
+   ───────────────────────────────────────── */
+interface TopProc {
+  pid: number;
+  name: string;
+  cpu: number;
+  mem: number;
+  user: string;
+}
+
+function TopProcessesPanel({ agentId }: { agentId: string }) {
+  const { isDark } = useTheme();
+  const [list, setList] = useState<TopProc[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const reqIdRef = useRef(0);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !agentId) return;
+
+    const onResult = (data: { agentId: string; success: boolean; error?: string; list?: TopProc[] }) => {
+      if (data.agentId !== agentId) return;
+      setLoaded(true);
+      if (!data.success) {
+        setError(data.error || 'failed to list processes');
+        return;
+      }
+      setError(null);
+      setList((data.list || []).slice(0, 8));
+    };
+
+    const request = () => {
+      reqIdRef.current += 1;
+      socket.emit('processes:list', { agentId, limit: 12, requestId: reqIdRef.current });
+    };
+
+    socket.on('processes:list:result', onResult);
+    request();
+    const id = window.setInterval(request, 5000);
+
+    return () => {
+      socket.off('processes:list:result', onResult);
+      window.clearInterval(id);
+    };
+  }, [agentId]);
+
+  return (
+    <div className="section-card">
+      <SectionHeader icon={<ListTree className="w-4 h-4" />} color="#22d3ee" label="Top processes" />
+      {!loaded && (
+        <div className={`text-[12px] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Loading…</div>
+      )}
+      {loaded && error && (
+        <div className="text-[12px] text-red-400">{error}</div>
+      )}
+      {loaded && !error && list.length === 0 && (
+        <div className={`text-[12px] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>No process data</div>
+      )}
+      {loaded && !error && list.length > 0 && (
+        <div className="space-y-1.5">
+          {list.map((p) => {
+            const cpuColor = p.cpu > 70 ? '#ef4444' : p.cpu > 30 ? '#f97316' : '#10b981';
+            return (
+              <div key={p.pid} className="flex items-center gap-3 text-[12px]">
+                <span className={`flex-1 truncate ${isDark ? 'text-zinc-200' : 'text-gray-800'} font-medium`} title={`${p.name} • PID ${p.pid} • ${p.user}`}>
+                  {p.name || `pid ${p.pid}`}
+                </span>
+                <span className={`font-mono text-[11px] tabular-nums ${isDark ? 'text-zinc-500' : 'text-gray-500'} w-12 text-right`}>{p.mem.toFixed(1)}%</span>
+                <span className="font-mono text-[11px] tabular-nums w-14 text-right" style={{ color: cpuColor }}>
+                  {p.cpu.toFixed(1)}%
+                </span>
+                <div className="w-20 h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(p.cpu, 100)}%`, background: cpuColor }} />
+                </div>
               </div>
-              <ProgressBar value={metrics.memory.swapTotal > 0 ? (metrics.memory.swapUsed / metrics.memory.swapTotal * 100) : 0} color="from-orange-500 to-amber-500" height="h-[3px]" />
-            </div>
-          )}
-          <div className="grid grid-cols-3 gap-2">
-            <MiniBox label="Free" value={formatBytes(metrics.memory.free)} color="#10b981" />
-            <MiniBox label="Available" value={formatBytes(metrics.memory.available)} color="#3b82f6" />
-            <MiniBox label="Cached" value={formatBytes(metrics.memory.total - metrics.memory.used - metrics.memory.free)} color="#8b5cf6" />
+            );
+          })}
+          <div className={`pt-2 mt-1 border-t ${isDark ? 'border-zinc-800/60' : 'border-gray-200'} text-[10px] uppercase tracking-wide ${isDark ? 'text-zinc-600' : 'text-gray-400'} flex items-center gap-3`}>
+            <span>Name</span>
+            <span className="ml-auto">Mem</span>
+            <span className="w-14 text-right">CPU</span>
+            <span className="w-20" />
           </div>
         </div>
       )}
     </div>
   );
+}
+
+/* ──────────────────────────────────────────
+   AGENT EVENTS — last 12 events filtered to this agent
+   ───────────────────────────────────────── */
+function AgentEventsPanel({ agentId }: { agentId: string }) {
+  const { isDark } = useTheme();
+  const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!agentId) return;
+    const token = localStorage.getItem('pc-hub-token');
+    if (!token) return;
+
+    let cancelled = false;
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/events?agentId=${encodeURIComponent(agentId)}&limit=12`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: SystemEvent[] = await res.json();
+        if (cancelled) return;
+        setEvents(Array.isArray(data) ? data : []);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'fetch failed');
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    };
+
+    fetchEvents();
+    const id = window.setInterval(fetchEvents, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [agentId]);
+
+  return (
+    <div className="section-card">
+      <SectionHeader icon={<Activity className="w-4 h-4" />} color="#fbbf24" label="Recent events" />
+      {!loaded && (
+        <div className={`text-[12px] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Loading…</div>
+      )}
+      {loaded && error && (
+        <div className="text-[12px] text-red-400">{error}</div>
+      )}
+      {loaded && !error && events.length === 0 && (
+        <div className={`text-[12px] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>No events recorded yet for this device.</div>
+      )}
+      {loaded && !error && events.length > 0 && (
+        <div className="space-y-2">
+          {events.map((ev) => (
+            <div key={ev.id} className="flex items-start gap-2 text-[12px]">
+              <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0`} style={{ background: eventColor(ev.type) }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono text-[10px] uppercase tracking-wide ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>{ev.type}</span>
+                  <span className={`font-mono text-[10px] ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{formatRelative(ev.timestamp)}</span>
+                </div>
+                <div className={`${isDark ? 'text-zinc-300' : 'text-gray-700'} truncate`}>{ev.message}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function eventColor(type: string): string {
+  if (type.includes('error') || type.includes('alert') || type.includes('failed')) return '#ef4444';
+  if (type.includes('warn')) return '#f97316';
+  if (type.includes('login') || type.includes('connected') || type.includes('online')) return '#10b981';
+  if (type.includes('disconnect') || type.includes('offline')) return '#64748b';
+  return '#3b82f6';
+}
+
+function formatRelative(timestamp: string): string {
+  const t = new Date(timestamp).getTime();
+  if (!Number.isFinite(t)) return timestamp;
+  const diff = Date.now() - t;
+  const sec = Math.round(diff / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(hr / 24);
+  return `${day}d ago`;
 }
 
 /* ─────────────────────────────────────────────────────────
