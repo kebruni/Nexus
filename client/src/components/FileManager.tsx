@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowUpDown,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -116,6 +117,9 @@ export default function FileManager({ agentId }: FileManagerProps) {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showSearch, setShowSearch] = useState(false);
+  const [drives, setDrives] = useState<string[]>([]);
+  const [drivesOpen, setDrivesOpen] = useState(false);
+  const drivesRef = useRef<HTMLDivElement | null>(null);
 
   const navigateTo = useCallback((path: string) => {
     const socket = getSocket();
@@ -145,6 +149,7 @@ export default function FileManager({ agentId }: FileManagerProps) {
       setFiles(data.files);
       setCurrentPath(data.path);
       setParentPath(data.parentPath);
+      if (data.drives && data.drives.length > 0) setDrives(data.drives);
       setError('');
     };
 
@@ -205,6 +210,36 @@ export default function FileManager({ agentId }: FileManagerProps) {
       return field;
     });
   }, []);
+
+  const currentDrive = useMemo(() => {
+    if (!currentPath) return '';
+    // Windows: C:\ , D:\Users\... → take 'C:' / 'D:'
+    const winMatch = /^([a-zA-Z]:)/.exec(currentPath);
+    if (winMatch) return winMatch[1].toUpperCase();
+    // POSIX: '/' as the only root
+    if (currentPath.startsWith('/')) return '/';
+    return '';
+  }, [currentPath]);
+
+  const switchDrive = useCallback((drive: string) => {
+    setDrivesOpen(false);
+    if (drive === '/') {
+      navigateTo('/');
+    } else {
+      navigateTo(`${drive}\\`);
+    }
+  }, [navigateTo]);
+
+  useEffect(() => {
+    if (!drivesOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      if (drivesRef.current && !drivesRef.current.contains(event.target as Node)) {
+        setDrivesOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [drivesOpen]);
 
   const breadcrumbs = useMemo(() => {
     const separator = currentPath.includes('/') ? '/' : '\\';
@@ -273,27 +308,84 @@ export default function FileManager({ agentId }: FileManagerProps) {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
-          <div className="flex items-center ml-2 gap-0.5 min-w-0 overflow-auto">
-            {breadcrumbs.map((crumb, index) => (
-              <div key={crumb.path} className="flex items-center">
-                {index > 0 && <ChevronRight className={`w-3.5 h-3.5 ${isDark ? 'text-zinc-700' : 'text-gray-300'} mx-0.5`} />}
-                <button
-                  onClick={() => navigateTo(crumb.path)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] transition-colors whitespace-nowrap ${
-                    index === breadcrumbs.length - 1
-                      ? isDark
-                        ? 'text-white font-medium bg-zinc-800/50'
-                        : 'text-gray-900 font-medium bg-gray-200/50'
-                      : isDark
-                        ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'
-                        : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                  }`}
+          {drives.length > 1 && currentDrive ? (
+            <div className="relative ml-2" ref={drivesRef}>
+              <button
+                onClick={() => setDrivesOpen((v) => !v)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] whitespace-nowrap transition-colors ${
+                  isDark
+                    ? 'text-white font-medium bg-zinc-800/50 hover:bg-zinc-800'
+                    : 'text-gray-900 font-medium bg-gray-200/50 hover:bg-gray-200'
+                }`}
+                title={`Switch drive (${drives.length} available)`}
+              >
+                <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                {currentDrive}
+                <ChevronDown className={`w-3 h-3 ${isDark ? 'text-zinc-500' : 'text-gray-500'} transition-transform ${drivesOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {drivesOpen && (
+                <div
+                  className={`absolute left-0 top-full mt-1 min-w-[140px] ${
+                    isDark ? 'bg-[#121214] border-zinc-800' : 'bg-white border-gray-200'
+                  } border rounded-lg shadow-xl z-50 overflow-hidden`}
                 >
-                  {index === 0 ? <HardDrive className="w-3.5 h-3.5 text-sky-400" /> : <Folder className="w-3.5 h-3.5 text-sky-400/60" />}
-                  {crumb.label}
-                </button>
-              </div>
-            ))}
+                  {drives.map((drive) => {
+                    const isActive = drive === currentDrive;
+                    return (
+                      <button
+                        key={drive}
+                        onClick={() => switchDrive(drive)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition-colors ${
+                          isActive
+                            ? isDark
+                              ? 'bg-sky-500/10 text-sky-300'
+                              : 'bg-sky-50 text-sky-700'
+                            : isDark
+                              ? 'text-zinc-300 hover:bg-zinc-800'
+                              : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                        <span className="font-medium">{drive}</span>
+                        {isActive && (
+                          <span className={`ml-auto text-[10px] uppercase tracking-wide ${isDark ? 'text-sky-400' : 'text-sky-600'}`}>
+                            current
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="flex items-center ml-2 gap-0.5 min-w-0 overflow-auto">
+            {breadcrumbs.map((crumb, index) => {
+              const isDriveCrumb = index === 0 && /^[a-zA-Z]:$/.test(crumb.label);
+              // If we render the dedicated drive picker, hide the first breadcrumb (drive letter)
+              if (isDriveCrumb && drives.length > 1) return null;
+              return (
+                <div key={crumb.path} className="flex items-center">
+                  {index > 0 && <ChevronRight className={`w-3.5 h-3.5 ${isDark ? 'text-zinc-700' : 'text-gray-300'} mx-0.5`} />}
+                  <button
+                    onClick={() => navigateTo(crumb.path)}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[13px] transition-colors whitespace-nowrap ${
+                      index === breadcrumbs.length - 1
+                        ? isDark
+                          ? 'text-white font-medium bg-zinc-800/50'
+                          : 'text-gray-900 font-medium bg-gray-200/50'
+                        : isDark
+                          ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'
+                          : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {index === 0 ? <HardDrive className="w-3.5 h-3.5 text-sky-400" /> : <Folder className="w-3.5 h-3.5 text-sky-400/60" />}
+                    {crumb.label}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 

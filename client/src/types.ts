@@ -127,6 +127,7 @@ export interface FileListResult {
   path: string;
   parentPath: string;
   files: FileItem[];
+  drives?: string[];
   error?: string;
 }
 
