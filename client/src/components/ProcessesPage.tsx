@@ -68,20 +68,21 @@ export default function ProcessesPage() {
     };
   }, []);
 
-  // Auto-pick first online agent if nothing chosen
-  useEffect(() => {
-    if (selectedAgent) return;
-    const first = agents.find((a) => a.status === 'online');
-    if (first) setSelectedAgent(first.id);
+  // Auto-pick first online agent if nothing chosen.
+  // Derive synchronously instead of via setState-in-effect so the lint rule
+  // `react-hooks/set-state-in-effect` is happy.
+  const effectiveAgentId = useMemo(() => {
+    if (selectedAgent) return selectedAgent;
+    return agents.find((a) => a.status === 'online')?.id || '';
   }, [agents, selectedAgent]);
 
   // Wire up result handlers + periodic refresh
   useEffect(() => {
     const socket = getSocket();
-    if (!socket || !selectedAgent) return;
+    if (!socket || !effectiveAgentId) return;
 
     const onResult = (data: { agentId: string; success: boolean; error?: string; list?: Proc[]; summary?: Summary }) => {
-      if (data.agentId !== selectedAgent) return;
+      if (data.agentId !== effectiveAgentId) return;
       setLoading(false);
       if (!data.success) {
         setError(data.error || 'failed to list processes');
@@ -93,7 +94,7 @@ export default function ProcessesPage() {
     };
 
     const onKillResult = (data: { agentId: string; success: boolean; pid?: number; error?: string }) => {
-      if (data.agentId !== selectedAgent) return;
+      if (data.agentId !== effectiveAgentId) return;
       setBusyKill(null);
       if (!data.success) {
         setError(data.error || 'kill failed');
@@ -107,7 +108,7 @@ export default function ProcessesPage() {
       if (paused) return;
       setLoading(true);
       reqIdRef.current += 1;
-      socket.emit('processes:list', { agentId: selectedAgent, limit: 200, requestId: reqIdRef.current });
+      socket.emit('processes:list', { agentId: effectiveAgentId, limit: 200, requestId: reqIdRef.current });
     };
 
     socket.on('processes:list:result', onResult);
@@ -122,24 +123,24 @@ export default function ProcessesPage() {
       socket.off('processes:kill:result', onKillResult);
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
-  }, [selectedAgent, paused]);
+  }, [effectiveAgentId, paused]);
 
   const requestList = () => {
     const socket = getSocket();
-    if (!socket || !selectedAgent) return;
+    if (!socket || !effectiveAgentId) return;
     setLoading(true);
     reqIdRef.current += 1;
-    socket.emit('processes:list', { agentId: selectedAgent, limit: 200, requestId: reqIdRef.current });
+    socket.emit('processes:list', { agentId: effectiveAgentId, limit: 200, requestId: reqIdRef.current });
   };
 
   const handleKill = (pid: number, name: string) => {
     if (!canKill) return;
     if (!window.confirm(t('processes.confirmKill', { pid: String(pid), name }))) return;
     const socket = getSocket();
-    if (!socket || !selectedAgent) return;
+    if (!socket || !effectiveAgentId) return;
     setBusyKill(pid);
     reqIdRef.current += 1;
-    socket.emit('processes:kill', { agentId: selectedAgent, pid, requestId: reqIdRef.current });
+    socket.emit('processes:kill', { agentId: effectiveAgentId, pid, requestId: reqIdRef.current });
   };
 
   const filtered = useMemo(() => {
@@ -210,7 +211,7 @@ export default function ProcessesPage() {
           </button>
           <button
             onClick={requestList}
-            disabled={loading || !selectedAgent}
+            disabled={loading || !effectiveAgentId}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition disabled:opacity-50 ${isDark ? 'border-zinc-700 hover:bg-zinc-900 text-zinc-300' : 'border-gray-300 hover:bg-gray-50 text-gray-700'}`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -222,7 +223,7 @@ export default function ProcessesPage() {
       {/* Agent picker + filter */}
       <div className={`${cardBg} border rounded-xl p-3 flex flex-wrap items-center gap-3`}>
         <select
-          value={selectedAgent}
+          value={effectiveAgentId}
           onChange={(e) => { setSelectedAgent(e.target.value); setList([]); setSummary(null); }}
           className={`text-sm flex-1 min-w-[12rem] px-2 py-1.5 rounded-lg border ${isDark ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
         >
@@ -325,7 +326,7 @@ export default function ProcessesPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={canKill ? 6 : 5} className={`px-3 py-8 text-center text-sm ${muted}`}>
-                    {selectedAgent ? (loading ? t('processes.loading') : t('processes.empty')) : t('processes.selectDeviceFirst')}
+                    {effectiveAgentId ? (loading ? t('processes.loading') : t('processes.empty')) : t('processes.selectDeviceFirst')}
                   </td>
                 </tr>
               )}
