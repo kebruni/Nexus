@@ -24,6 +24,7 @@ const GroupsPage = lazy(() => import('./components/GroupsPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
 const WebhooksPage = lazy(() => import('./components/WebhooksPage'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const ProcessesPage = lazy(() => import('./components/ProcessesPage'));
 
 function AppSplash() {
   return (
@@ -119,6 +120,7 @@ function App() {
                 <Route path="users" element={<UsersPage />} />
                 <Route path="webhooks" element={<WebhooksPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="processes" element={<ProcessesPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

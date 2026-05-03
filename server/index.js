@@ -627,6 +627,16 @@ agentNsp.on('connection', (socket) => {
     dashNsp.emit('service:action:result', { agentId, ...data });
   });
 
+  // ─ Receive process list from agent (Task Manager)
+  socket.on('processes:list:result', (data) => {
+    dashNsp.emit('processes:list:result', { agentId, ...data });
+  });
+
+  // ─ Receive kill result from agent
+  socket.on('processes:kill:result', (data) => {
+    dashNsp.emit('processes:kill:result', { agentId, ...data });
+  });
+
   // ─ Receive screenshot from agent
   socket.on('screen:frame', (data) => {
     dashNsp.emit('screen:frame', { agentId, ...data });
@@ -877,6 +887,28 @@ dashNsp.on('connection', (socket) => {
     if (agentSocket) {
       store.addEvent('service_action', `${socket.user.username} ${action} service ${serviceName}`, agentId);
       agentSocket.emit('service:action', { serviceName, action });
+    }
+  });
+
+  // ─ Process Manager (Task Manager view)
+  socket.on('processes:list', ({ agentId, limit, requestId }) => {
+    const agentSocket = findAgentSocket(agentId);
+    if (agentSocket) {
+      agentSocket.emit('processes:list', { limit, requestId });
+    } else {
+      socket.emit('processes:list:result', { agentId, success: false, error: 'Agent not connected', requestId });
+    }
+  });
+
+  socket.on('processes:kill', ({ agentId, pid, requestId }) => {
+    if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'processes:kill');
+    const agentSocket = findAgentSocket(agentId);
+    if (agentSocket) {
+      const username = (socket.user && socket.user.username) || 'admin';
+      store.addEvent('process_kill', `${username} killed PID ${pid}`, agentId);
+      agentSocket.emit('processes:kill', { pid, requestId });
+    } else {
+      socket.emit('processes:kill:result', { agentId, success: false, error: 'Agent not connected', requestId });
     }
   });
 
