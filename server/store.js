@@ -107,6 +107,40 @@ class Store {
     persistence.flushSync(() => this._snapshot());
   }
 
+  /**
+   * Replace persisted store contents with the given snapshot. Used by
+   * the backup/restore endpoint. `agents`, `metricsHistory`,
+   * `latencies` and `alertTimers` are runtime-only and intentionally
+   * preserved.
+   */
+  restoreSnapshot(snap) {
+    if (!snap || typeof snap !== 'object') {
+      throw new Error('Invalid snapshot');
+    }
+    this.eventLog = Array.isArray(snap.eventLog) ? snap.eventLog : [];
+    this.alertRules = Array.isArray(snap.alertRules) ? snap.alertRules : [];
+    this.alerts = Array.isArray(snap.alerts) ? snap.alerts : [];
+    this.scripts = Array.isArray(snap.scripts) ? snap.scripts : [];
+    this.webhooks = Array.isArray(snap.webhooks) ? snap.webhooks : [];
+    this.schedules = Array.isArray(snap.schedules) ? snap.schedules : [];
+
+    this.chatMessages = new Map();
+    if (snap.chatMessages && typeof snap.chatMessages === 'object') {
+      for (const [agentId, msgs] of Object.entries(snap.chatMessages)) {
+        if (Array.isArray(msgs)) this.chatMessages.set(agentId, msgs);
+      }
+    }
+
+    this.groups = new Map();
+    if (snap.groups && typeof snap.groups === 'object') {
+      for (const [name, group] of Object.entries(snap.groups)) {
+        this.groups.set(name, group);
+      }
+    }
+
+    this.flushSync();
+  }
+
   // ── Garbage Collection ──────────────────────────────────
 
   cleanupDeadAgents() {
