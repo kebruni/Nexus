@@ -94,6 +94,7 @@ export interface SystemEvent {
   type: string;
   message: string;
   agentId: string | null;
+  actor?: string | null;
   timestamp: string;
 }
 
