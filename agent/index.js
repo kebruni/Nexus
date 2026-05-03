@@ -9,6 +9,7 @@ const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAc
 const { listDirectory, readFile, deleteFile } = require('./fileManager');
 const { startStreaming, stopStreaming, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
 const { getClipboard, setClipboard } = require('./clipboard');
+const { listProcesses, killProcess } = require('./processManager');
 
 function getOrCreateAgentId() {
   const idFile = path.join(__dirname, '.agent-id');
@@ -100,6 +101,18 @@ async function main() {
     console.log('  [CMD] Alarm requested');
     const result = await soundAlarm();
     socket.emit('command:result', { command: 'alarm', ...result });
+  });
+
+  // ── Process Manager Handlers ───────────────────────────
+  socket.on('processes:list', async ({ limit, requestId } = {}) => {
+    const result = await listProcesses({ limit });
+    socket.emit('processes:list:result', { ...result, requestId });
+  });
+
+  socket.on('processes:kill', async ({ pid, requestId }) => {
+    console.log(`  [PROC] Kill request pid=${pid}`);
+    const result = killProcess(pid);
+    socket.emit('processes:kill:result', { ...result, requestId });
   });
 
   // ── Service Handlers ───────────────────────────────────

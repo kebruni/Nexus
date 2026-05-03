@@ -29,6 +29,7 @@ import {
   Check,
   Search,
   Sliders,
+  Cpu,
 } from 'lucide-react';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import CommandPalette from './CommandPalette';
@@ -66,6 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/sftp', key: 'nav.sftp', icon: ArrowLeftRight },
       { to: '/dashboard/chat', key: 'nav.chat', icon: MessageSquare },
       { to: '/dashboard/scripts', key: 'nav.scripts', icon: FileCode },
+      { to: '/dashboard/processes', key: 'nav.processes', icon: Cpu },
     ],
   },
   {
@@ -126,6 +128,7 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/analytics', 'nav.analytics'],
       ['/dashboard/scripts', 'nav.scripts'],
       ['/dashboard/groups', 'nav.groups'],
+      ['/dashboard/processes', 'nav.processes'],
       ['/dashboard/users', 'nav.users'],
       ['/dashboard/webhooks', 'nav.webhooks'],
       ['/dashboard/computer', 'nav.computerDetails'],
