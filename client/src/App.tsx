@@ -26,6 +26,7 @@ const WebhooksPage = lazy(() => import('./components/WebhooksPage'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const ProcessesPage = lazy(() => import('./components/ProcessesPage'));
 const AuditLogPage = lazy(() => import('./components/AuditLogPage'));
+const SchedulesPage = lazy(() => import('./components/SchedulesPage'));
 
 function AppSplash() {
   return (
@@ -123,6 +124,7 @@ function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="processes" element={<ProcessesPage />} />
                 <Route path="audit" element={<AuditLogPage />} />
+                <Route path="schedules" element={<SchedulesPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

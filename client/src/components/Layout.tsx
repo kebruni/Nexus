@@ -31,6 +31,7 @@ import {
   Sliders,
   Cpu,
   ScrollText,
+  CalendarClock,
 } from 'lucide-react';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import CommandPalette from './CommandPalette';
@@ -69,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/chat', key: 'nav.chat', icon: MessageSquare },
       { to: '/dashboard/scripts', key: 'nav.scripts', icon: FileCode },
       { to: '/dashboard/processes', key: 'nav.processes', icon: Cpu },
+      { to: '/dashboard/schedules', key: 'nav.schedules', icon: CalendarClock },
     ],
   },
   {
@@ -133,6 +135,8 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/processes', 'nav.processes'],
       ['/dashboard/users', 'nav.users'],
       ['/dashboard/webhooks', 'nav.webhooks'],
+      ['/dashboard/schedules', 'nav.schedules'],
+      ['/dashboard/audit', 'nav.audit'],
       ['/dashboard/computer', 'nav.computerDetails'],
     ];
     for (const [prefix, key] of map) {

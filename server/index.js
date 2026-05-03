@@ -7,6 +7,7 @@ const fs = require('fs');
 const config = require('./config');
 const store = require('./store');
 const notifier = require('./notifier');
+const { startScheduler, validateCron } = require('./scheduler');
 const {
   authenticate,
   verifyTotpTicket,
@@ -576,29 +577,39 @@ app.put('/api/agents/:id/group', authMiddleware, requireRole('operator'), (req, 
 // missed without aborting the whole bulk action.
 const BULK_ACTIONS = new Set(['execute', 'reboot', 'shutdown', 'lockscreen', 'alarm']);
 
-app.post('/api/bulk/command', authMiddleware, requireRole('operator'), (req, res) => {
-  const { action, groupName, agentIds, command } = req.body || {};
+/**
+ * Fan a single action out to every matching agent. Reused by the
+ * `/api/bulk/command` REST endpoint and by the cron scheduler.
+ *
+ * @param {object} opts
+ * @param {string}              opts.action       one of BULK_ACTIONS
+ * @param {string=}             opts.groupName    target a whole group
+ * @param {string[]=}           opts.agentIds     or an explicit id list
+ * @param {string=}             opts.command      required when action=execute
+ * @param {string=}             opts.actor        username to record on the event
+ * @param {string=}             opts.source       'manual' | 'scheduled' (event prefix)
+ * @returns {{ ok:true, action, dispatched, skipped, sent, total }
+ *          | { ok:false, status, error, allowed? }}
+ */
+function fanOutBulkAction({ action, groupName, agentIds, command, actor, source = 'manual' }) {
   if (!BULK_ACTIONS.has(action)) {
-    return res.status(400).json({ error: 'Invalid action', allowed: Array.from(BULK_ACTIONS) });
+    return { ok: false, status: 400, error: 'Invalid action', allowed: Array.from(BULK_ACTIONS) };
   }
   if (action === 'execute' && (!command || typeof command !== 'string')) {
-    return res.status(400).json({ error: '`command` is required for action=execute' });
+    return { ok: false, status: 400, error: '`command` is required for action=execute' };
   }
 
-  // Resolve target list.
   let targets = [];
   if (Array.isArray(agentIds) && agentIds.length) {
-    targets = agentIds
-      .map((id) => store.getAgent(id))
-      .filter(Boolean);
+    targets = agentIds.map((id) => store.getAgent(id)).filter(Boolean);
   } else if (groupName) {
     targets = store.getAgentsByGroup(groupName);
   } else {
-    return res.status(400).json({ error: 'Either `groupName` or `agentIds[]` is required' });
+    return { ok: false, status: 400, error: 'Either `groupName` or `agentIds[]` is required' };
   }
 
   if (!targets.length) {
-    return res.status(404).json({ error: 'No matching agents' });
+    return { ok: false, status: 404, error: 'No matching agents' };
   }
 
   const dispatched = [];
@@ -632,21 +643,171 @@ app.post('/api/bulk/command', authMiddleware, requireRole('operator'), (req, res
 
   const scope = groupName ? `group "${groupName}"` : `${targets.length} selected`;
   const detail = action === 'execute' ? `: ${command}` : '';
+  const eventType = source === 'scheduled' ? `scheduled_${action}` : `bulk_${action}`;
   store.addEvent(
-    `bulk_${action}`,
-    `Bulk ${action} to ${scope} — ${dispatched.length} sent, ${skipped.length} skipped${detail}`,
+    eventType,
+    `${source === 'scheduled' ? 'Scheduled' : 'Bulk'} ${action} to ${scope} — ${dispatched.length} sent, ${skipped.length} skipped${detail}`,
     null,
-    req.user.username,
+    actor || null,
   );
 
-  res.json({
+  return {
+    ok: true,
     action,
-    target: groupName ? { groupName } : { agentIds: targets.map((a) => a.id) },
     dispatched,
     skipped,
     sent: dispatched.length,
     total: targets.length,
+  };
+}
+
+app.post('/api/bulk/command', authMiddleware, requireRole('operator'), (req, res) => {
+  const { action, groupName, agentIds, command } = req.body || {};
+  const result = fanOutBulkAction({
+    action,
+    groupName,
+    agentIds,
+    command,
+    actor: req.user.username,
+    source: 'manual',
   });
+  if (!result.ok) {
+    const { ok: _ok, status, error, allowed } = result;
+    return res.status(status).json(allowed ? { error, allowed } : { error });
+  }
+  res.json({
+    action: result.action,
+    target: groupName ? { groupName } : { agentIds: (agentIds || []).slice() },
+    dispatched: result.dispatched,
+    skipped: result.skipped,
+    sent: result.sent,
+    total: result.total,
+  });
+});
+
+// ── Schedules (cron-style) ────────────────────────────────
+// Each schedule fires the same fan-out as /api/bulk/command, on the
+// minute, when the cron expression matches. operator+ for create/update,
+// admin+ would be overkill since these are equivalent in power to the
+// bulk endpoint they wrap.
+
+function validateSchedulePayload(body, partial = false) {
+  if (!body || typeof body !== 'object') return 'Body required';
+  if (!partial || 'name' in body) {
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length < 1) {
+      return 'name is required';
+    }
+  }
+  if (!partial || 'cron' in body) {
+    const err = validateCron(body.cron);
+    if (err) return `cron: ${err}`;
+  }
+  if (!partial || 'action' in body) {
+    if (!BULK_ACTIONS.has(body.action)) {
+      return `action must be one of ${Array.from(BULK_ACTIONS).join(', ')}`;
+    }
+    if (body.action === 'execute') {
+      if (!body.command || typeof body.command !== 'string') {
+        return 'command is required when action=execute';
+      }
+    }
+  }
+  if (!partial || 'target' in body) {
+    if (!body.target || typeof body.target !== 'object') return 'target is required';
+    if (body.target.kind === 'group') {
+      if (!body.target.value || typeof body.target.value !== 'string') {
+        return 'target.value (group name) is required';
+      }
+    } else if (body.target.kind === 'agentIds') {
+      if (!Array.isArray(body.target.value) || !body.target.value.length) {
+        return 'target.value must be a non-empty array of agent IDs';
+      }
+    } else {
+      return 'target.kind must be "group" or "agentIds"';
+    }
+  }
+  return null;
+}
+
+function dispatchSchedule(schedule) {
+  const target = schedule.target || {};
+  const result = fanOutBulkAction({
+    action: schedule.action,
+    groupName: target.kind === 'group' ? target.value : undefined,
+    agentIds: target.kind === 'agentIds' ? target.value : undefined,
+    command: schedule.command || undefined,
+    actor: `schedule:${schedule.name}`,
+    source: 'scheduled',
+  });
+  const summary = result.ok
+    ? { sent: result.sent, skipped: result.skipped.length, error: null }
+    : { sent: 0, skipped: 0, error: result.error };
+  store.recordScheduleRun(schedule.id, summary);
+  return summary;
+}
+
+app.get('/api/schedules', authMiddleware, (req, res) => {
+  res.json({ schedules: store.getSchedules(), actions: Array.from(BULK_ACTIONS) });
+});
+
+app.post('/api/schedules', authMiddleware, requireRole('operator'), (req, res) => {
+  const err = validateSchedulePayload(req.body);
+  if (err) return res.status(400).json({ error: err });
+  const sched = store.addSchedule({
+    name: req.body.name.trim(),
+    cron: req.body.cron.trim(),
+    action: req.body.action,
+    command: req.body.command || null,
+    target: req.body.target,
+    enabled: req.body.enabled !== false,
+    createdBy: req.user.username,
+  });
+  store.addEvent('schedule_created', `Schedule "${sched.name}" created`, null, req.user.username);
+  res.status(201).json(sched);
+});
+
+app.put('/api/schedules/:id', authMiddleware, requireRole('operator'), (req, res) => {
+  const existing = store.getSchedule(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  const err = validateSchedulePayload({ ...existing, ...req.body }, false);
+  if (err) return res.status(400).json({ error: err });
+  const updated = store.updateSchedule(req.params.id, req.body);
+  store.addEvent('schedule_updated', `Schedule "${updated.name}" updated`, null, req.user.username);
+  res.json(updated);
+});
+
+app.delete('/api/schedules/:id', authMiddleware, requireRole('operator'), (req, res) => {
+  const existing = store.getSchedule(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  store.deleteSchedule(req.params.id);
+  store.addEvent('schedule_deleted', `Schedule "${existing.name}" deleted`, null, req.user.username);
+  res.json({ success: true });
+});
+
+app.patch('/api/schedules/:id/toggle', authMiddleware, requireRole('operator'), (req, res) => {
+  const existing = store.getSchedule(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  const updated = store.updateSchedule(req.params.id, { enabled: !existing.enabled });
+  store.addEvent(
+    updated.enabled ? 'schedule_enabled' : 'schedule_disabled',
+    `Schedule "${updated.name}" ${updated.enabled ? 'enabled' : 'disabled'}`,
+    null,
+    req.user.username,
+  );
+  res.json(updated);
+});
+
+app.post('/api/schedules/:id/run-now', authMiddleware, requireRole('operator'), (req, res) => {
+  const existing = store.getSchedule(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  store.addEvent(
+    'schedule_run_now',
+    `Schedule "${existing.name}" run on demand`,
+    null,
+    req.user.username,
+  );
+  const result = dispatchSchedule(existing);
+  res.json({ schedule: store.getSchedule(req.params.id), result });
 });
 
 // ── Scripts API ───────────────────────────────────────────
@@ -1258,12 +1419,23 @@ server.listen(config.PORT, HOST, () => {
   logSecurityWarnings();
 });
 
+// ── Cron scheduler: fires enabled schedules on the minute ────
+const scheduler = startScheduler({
+  getSchedules: () => store.getSchedules(),
+  dispatchFn: (s) => dispatchSchedule(s),
+});
+
 // ── Graceful shutdown: flush in-memory store to disk ─────
 let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\n[Server] Received ${signal}, flushing store and exiting...`);
+  try {
+    scheduler.stop();
+  } catch {
+    // best effort
+  }
   try {
     store.flushSync();
   } catch (err) {
