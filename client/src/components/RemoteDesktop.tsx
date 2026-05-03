@@ -303,6 +303,9 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
+    // drawRemoteCursor / drawAdminCursor are pure functions of their args (no captured mutable state)
+    // — including them in deps would tear down the render loop on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streaming, smoothCursor, showRemoteCursor, showAdminCursor, inputEnabled]);
 
   const startStreaming = () => {

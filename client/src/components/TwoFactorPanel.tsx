@@ -145,12 +145,12 @@ export default function TwoFactorPanel() {
 
   // ── Render ────────────────────────────────────────────────
   return (
-    <div className="nx-settings-action-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="nx-settings-action-card is-stack">
+      <div className="nx-settings-action-stack-head">
         <div className="nx-settings-action-icon">
           <ShieldCheck className="w-4 h-4" strokeWidth={1.8} />
         </div>
-        <div className="nx-settings-action-body" style={{ flex: 1 }}>
+        <div className="nx-settings-action-body">
           <div className="nx-settings-action-title">
             {t('settings.twoFactor')}
             {status?.enabled ? (

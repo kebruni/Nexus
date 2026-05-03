@@ -853,6 +853,9 @@ export const translations = {
   'settings.themeDesc': { en: 'Light surfaces by day, dark by night.', ru: 'Светлая днём, тёмная вечером.', kz: 'Күндіз ашық, түнде қара.' },
   'settings.languageDesc': { en: 'Apply across the dashboard immediately.', ru: 'Применяется во всём интерфейсе сразу.', kz: 'Барлық интерфейске бірден қолданылады.' },
 
+  // ── Settings (sidebar / breadcrumb) ──
+  'nav.settings': { en: 'Settings', ru: 'Настройки', kz: 'Баптаулар' },
+
   // ── Backup / Restore ──
   'nav.backup': { en: 'Backup', ru: 'Резервные копии', kz: 'Сақтық көшірмелер' },
   'backup.title': { en: 'Backup & Restore', ru: 'Резервное копирование', kz: 'Сақтық көшірме' },
