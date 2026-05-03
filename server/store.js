@@ -212,12 +212,13 @@ class Store {
 
   // ── Event Log ───────────────────────────────────────────
 
-  addEvent(type, message, agentId = null) {
+  addEvent(type, message, agentId = null, actor = null) {
     const event = {
       id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
       type,
       message,
       agentId,
+      actor: actor || null,
       timestamp: new Date().toISOString(),
     };
     this.eventLog.unshift(event);
@@ -236,6 +237,80 @@ class Store {
       events = events.filter((e) => e.agentId === agentId);
     }
     return events.slice(0, limit);
+  }
+
+  /**
+   * Filter, paginate and summarize the event log for the audit page.
+   * All filters are AND'ed. Empty/undefined fields are ignored.
+   *
+   * @param {object} opts
+   * @param {string|string[]} [opts.type]      single type or array of types
+   * @param {string} [opts.agentId]
+   * @param {string} [opts.actor]
+   * @param {string} [opts.q]                 substring (case-insensitive) over message+type+actor+agentId
+   * @param {string} [opts.from]              ISO timestamp lower bound (inclusive)
+   * @param {string} [opts.to]                ISO timestamp upper bound (inclusive)
+   * @param {number} [opts.limit=100]
+   * @param {number} [opts.offset=0]
+   * @returns {{ items: object[], total: number, types: string[], actors: string[] }}
+   */
+  getEventsAdvanced(opts = {}) {
+    const { type, agentId, actor, q, from, to } = opts;
+    const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 100, 1), 1000);
+    const offset = Math.max(parseInt(opts.offset, 10) || 0, 0);
+
+    const types = new Set();
+    const actors = new Set();
+    for (const ev of this.eventLog) {
+      types.add(ev.type);
+      if (ev.actor) actors.add(ev.actor);
+    }
+
+    const typeFilter = Array.isArray(type)
+      ? new Set(type.filter(Boolean))
+      : type
+        ? new Set([type])
+        : null;
+
+    const fromMs = from ? Date.parse(from) : null;
+    const toMs = to ? Date.parse(to) : null;
+    const needle = q ? String(q).toLowerCase() : null;
+
+    const matches = (ev) => {
+      if (typeFilter && !typeFilter.has(ev.type)) return false;
+      if (agentId && ev.agentId !== agentId) return false;
+      if (actor && ev.actor !== actor) return false;
+      if (fromMs != null) {
+        const ts = Date.parse(ev.timestamp);
+        if (Number.isFinite(ts) && ts < fromMs) return false;
+      }
+      if (toMs != null) {
+        const ts = Date.parse(ev.timestamp);
+        if (Number.isFinite(ts) && ts > toMs) return false;
+      }
+      if (needle) {
+        const hay =
+          (ev.message || '').toLowerCase() +
+          ' ' +
+          (ev.type || '').toLowerCase() +
+          ' ' +
+          (ev.actor || '').toLowerCase() +
+          ' ' +
+          (ev.agentId || '').toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    };
+
+    const filtered = this.eventLog.filter(matches);
+    const items = filtered.slice(offset, offset + limit);
+
+    return {
+      items,
+      total: filtered.length,
+      types: Array.from(types).sort(),
+      actors: Array.from(actors).sort(),
+    };
   }
 
   // ── Chat ────────────────────────────────────────────────

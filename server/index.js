@@ -249,10 +249,10 @@ app.post('/api/auth/login', (req, res) => {
   loginAttempts.delete(ip);
   if (result.totpRequired) {
     // Password was correct but the account requires a 2FA code to finish login.
-    store.addEvent('login_totp_pending', `${username} entered correct password — awaiting 2FA code`);
+    store.addEvent('login_totp_pending', `${username} entered correct password — awaiting 2FA code`, null, username);
     return res.json({ totpRequired: true, ticket: result.ticket, username: result.username });
   }
-  store.addEvent('admin_login', `Admin ${username} logged in`);
+  store.addEvent('admin_login', `Admin ${username} logged in`, null, username);
   res.json(result);
 });
 
@@ -262,7 +262,7 @@ app.post('/api/auth/login/totp', (req, res) => {
   if (!ticket || !code) return res.status(400).json({ error: 'ticket and code are required' });
   const result = verifyTotpTicket(ticket, code);
   if (!result.success) return res.status(401).json({ error: result.error });
-  store.addEvent('admin_login', `Admin ${result.username} logged in (2FA via ${result.method})`);
+  store.addEvent('admin_login', `Admin ${result.username} logged in (2FA via ${result.method})`, null, result.username);
   res.json(result);
 });
 
@@ -279,7 +279,7 @@ app.post('/api/auth/change-password', authMiddleware, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   const result = changeAdminPassword(currentPassword, newPassword, req.user.username);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('admin_password_changed', `Admin ${req.user.username} changed their password`);
+  store.addEvent('admin_password_changed', `Admin ${req.user.username} changed their password`, null, req.user.username);
   res.json({ success: true });
 });
 
@@ -298,7 +298,7 @@ app.post('/api/auth/2fa/verify', authMiddleware, (req, res) => {
   const { code } = req.body || {};
   const result = confirmTotpEnroll(req.user.username, code);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('2fa_enabled', `User ${req.user.username} enabled 2FA`);
+  store.addEvent('2fa_enabled', `User ${req.user.username} enabled 2FA`, null, req.user.username);
   res.json(result);
 });
 
@@ -306,7 +306,7 @@ app.post('/api/auth/2fa/disable', authMiddleware, (req, res) => {
   const { currentPassword } = req.body || {};
   const result = disableTotp(req.user.username, currentPassword);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('2fa_disabled', `User ${req.user.username} disabled 2FA`);
+  store.addEvent('2fa_disabled', `User ${req.user.username} disabled 2FA`, null, req.user.username);
   res.json({ success: true });
 });
 
@@ -314,7 +314,7 @@ app.post('/api/auth/2fa/recovery-codes', authMiddleware, (req, res) => {
   const { currentPassword } = req.body || {};
   const result = regenerateRecoveryCodes(req.user.username, currentPassword);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('2fa_recovery_regenerated', `User ${req.user.username} regenerated recovery codes`);
+  store.addEvent('2fa_recovery_regenerated', `User ${req.user.username} regenerated recovery codes`, null, req.user.username);
   res.json(result);
 });
 
@@ -327,7 +327,7 @@ app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
   const { username, password, role } = req.body || {};
   const result = createUser({ username, password, role });
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('user_created', `User "${username}" (${role}) created by ${req.user.username}`);
+  store.addEvent('user_created', `User "${username}" (${role}) created by ${req.user.username}`, null, req.user.username);
   res.status(201).json(result.user);
 });
 
@@ -338,7 +338,7 @@ app.delete('/api/users/:username', authMiddleware, requireRole('admin'), (req, r
   }
   const result = deleteUser(target);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('user_deleted', `User "${target}" deleted by ${req.user.username}`);
+  store.addEvent('user_deleted', `User "${target}" deleted by ${req.user.username}`, null, req.user.username);
   res.json({ success: true });
 });
 
@@ -350,7 +350,7 @@ app.put('/api/users/:username/role', authMiddleware, requireRole('admin'), (req,
   }
   const result = updateUserRole(target, role);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('user_role_changed', `User "${target}" role -> ${role} by ${req.user.username}`);
+  store.addEvent('user_role_changed', `User "${target}" role -> ${role} by ${req.user.username}`, null, req.user.username);
   res.json(result.user);
 });
 
@@ -359,7 +359,7 @@ app.put('/api/users/:username/password', authMiddleware, requireRole('admin'), (
   const { newPassword } = req.body || {};
   const result = resetUserPassword(target, newPassword);
   if (!result.success) return res.status(400).json({ error: result.error });
-  store.addEvent('user_password_reset', `Password reset for "${target}" by ${req.user.username}`);
+  store.addEvent('user_password_reset', `Password reset for "${target}" by ${req.user.username}`, null, req.user.username);
   res.json({ success: true });
 });
 
@@ -386,7 +386,7 @@ app.post('/api/webhooks', authMiddleware, requireRole('admin'), (req, res) => {
   const err = validateWebhookPayload(req.body);
   if (err) return res.status(400).json({ error: err });
   const hook = store.addWebhook(req.body);
-  store.addEvent('webhook_created', `Webhook "${hook.name}" (${hook.type}) created by ${req.user.username}`);
+  store.addEvent('webhook_created', `Webhook "${hook.name}" (${hook.type}) created by ${req.user.username}`, null, req.user.username);
   res.status(201).json(hook);
 });
 
@@ -394,7 +394,7 @@ app.put('/api/webhooks/:id', authMiddleware, requireRole('admin'), (req, res) =>
   const hook = store.getWebhook(req.params.id);
   if (!hook) return res.status(404).json({ error: 'not found' });
   const updated = store.updateWebhook(req.params.id, req.body || {});
-  store.addEvent('webhook_updated', `Webhook "${updated.name}" updated by ${req.user.username}`);
+  store.addEvent('webhook_updated', `Webhook "${updated.name}" updated by ${req.user.username}`, null, req.user.username);
   res.json(updated);
 });
 
@@ -402,7 +402,7 @@ app.delete('/api/webhooks/:id', authMiddleware, requireRole('admin'), (req, res)
   const hook = store.getWebhook(req.params.id);
   if (!hook) return res.status(404).json({ error: 'not found' });
   store.deleteWebhook(req.params.id);
-  store.addEvent('webhook_deleted', `Webhook "${hook.name}" deleted by ${req.user.username}`);
+  store.addEvent('webhook_deleted', `Webhook "${hook.name}" deleted by ${req.user.username}`, null, req.user.username);
   res.json({ success: true });
 });
 
@@ -412,7 +412,7 @@ app.post('/api/webhooks/:id/test', authMiddleware, requireRole('admin'), async (
   const sample = notifier.buildTestAlert();
   const result = await notifier.sendOne(hook, sample);
   store.setWebhookLastDelivery(hook.id, result);
-  store.addEvent('webhook_tested', `Webhook "${hook.name}" tested by ${req.user.username}: ${result.ok ? 'ok' : result.error}`);
+  store.addEvent('webhook_tested', `Webhook "${hook.name}" tested by ${req.user.username}: ${result.ok ? 'ok' : result.error}`, null, req.user.username);
   res.json(result);
 });
 
@@ -439,6 +439,62 @@ app.get('/api/events', authMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const agentId = req.query.agentId || null;
   res.json(store.getEvents(limit, agentId));
+});
+
+// ── Audit log (admin) ────────────────────────────────────
+// Rich query layer over the same eventLog. Returns paginated items plus
+// the full set of distinct types & actors so the UI can populate filter
+// dropdowns without a second round-trip. Admin-only because audit data
+// often contains usernames and the actor field.
+function parseAuditQuery(q) {
+  const types = []
+    .concat(q.type || [])
+    .flatMap((v) => String(v).split(','))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return {
+    type: types.length ? types : undefined,
+    agentId: q.agentId || undefined,
+    actor: q.actor || undefined,
+    q: q.q || undefined,
+    from: q.from || undefined,
+    to: q.to || undefined,
+    limit: q.limit,
+    offset: q.offset,
+  };
+}
+
+app.get('/api/audit', authMiddleware, requireRole('admin'), (req, res) => {
+  res.json(store.getEventsAdvanced(parseAuditQuery(req.query)));
+});
+
+app.get('/api/audit/export.csv', authMiddleware, requireRole('admin'), (req, res) => {
+  // Force a generous cap on export so a single click can pull the full
+  // retained window (eventLog is capped at 1000 entries in the store).
+  const opts = parseAuditQuery(req.query);
+  opts.limit = 10000;
+  opts.offset = 0;
+  const { items } = store.getEventsAdvanced(opts);
+
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  const lines = ['timestamp,type,actor,agentId,message'];
+  for (const ev of items) {
+    lines.push(
+      [escape(ev.timestamp), escape(ev.type), escape(ev.actor), escape(ev.agentId), escape(ev.message)].join(','),
+    );
+  }
+  // BOM so Excel opens UTF-8 cleanly.
+  const body = '\uFEFF' + lines.join('\r\n');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="audit-${stamp}.csv"`);
+  res.send(body);
 });
 
 // ── Chat API ──────────────────────────────────────────────
@@ -474,7 +530,7 @@ app.get('/api/alert-rules', authMiddleware, (req, res) => {
 
 app.post('/api/alert-rules', authMiddleware, requireRole('operator'), (req, res) => {
   const rule = store.addAlertRule(req.body);
-  store.addEvent('alert_rule_created', `Alert rule "${rule.name}" created`);
+  store.addEvent('alert_rule_created', `Alert rule "${rule.name}" created`, null, req.user.username);
   res.json(rule);
 });
 
@@ -497,7 +553,7 @@ app.get('/api/groups', authMiddleware, (req, res) => {
 app.post('/api/groups', authMiddleware, requireRole('operator'), (req, res) => {
   const { name, color } = req.body;
   const group = store.addGroup(name, color);
-  store.addEvent('group_created', `Group "${name}" created`);
+  store.addEvent('group_created', `Group "${name}" created`, null, req.user.username);
   res.json(group);
 });
 
@@ -579,6 +635,8 @@ app.post('/api/bulk/command', authMiddleware, requireRole('operator'), (req, res
   store.addEvent(
     `bulk_${action}`,
     `Bulk ${action} to ${scope} — ${dispatched.length} sent, ${skipped.length} skipped${detail}`,
+    null,
+    req.user.username,
   );
 
   res.json({
@@ -600,7 +658,7 @@ app.post('/api/scripts', authMiddleware, requireRole('operator'), (req, res) => 
   const { name, code } = req.body;
   if (!name || !code) return res.status(400).json({ error: 'Name and code are required' });
   const script = store.addScript({ name, code });
-  store.addEvent('script_created', `Script "${name}" created`);
+  store.addEvent('script_created', `Script "${name}" created`, null, req.user.username);
   res.json(script);
 });
 
@@ -783,7 +841,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:execute');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('command_sent', `Admin sent command to ${agentId}: ${command}`, agentId);
+      store.addEvent('command_sent', `Admin sent command to ${agentId}: ${command}`, agentId, socket.user.username);
       agentSocket.emit('command:execute', { command, requestId: Date.now().toString() });
     } else {
       socket.emit('command:result', { agentId, error: 'Agent not connected', command });
@@ -795,7 +853,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:reboot');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('command_reboot', `Admin sent reboot to ${agentId}`, agentId);
+      store.addEvent('command_reboot', `Admin sent reboot to ${agentId}`, agentId, socket.user.username);
       agentSocket.emit('command:reboot');
     }
   });
@@ -805,7 +863,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:shutdown');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('command_shutdown', `Admin sent shutdown to ${agentId}`, agentId);
+      store.addEvent('command_shutdown', `Admin sent shutdown to ${agentId}`, agentId, socket.user.username);
       agentSocket.emit('command:shutdown');
     }
   });
@@ -815,7 +873,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:lockscreen');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('command_lock', `Admin locked screen on ${agentId}`, agentId);
+      store.addEvent('command_lock', `Admin locked screen on ${agentId}`, agentId, socket.user.username);
       agentSocket.emit('command:lockscreen');
     }
   });
@@ -825,7 +883,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'command:alarm');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('command_alarm', `Admin triggered alarm on ${agentId}`, agentId);
+      store.addEvent('command_alarm', `Admin triggered alarm on ${agentId}`, agentId, socket.user.username);
       agentSocket.emit('command:alarm');
     }
   });
@@ -844,7 +902,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:download');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('file_download', `Admin downloaded file: ${filePath}`, agentId);
+      store.addEvent('file_download', `Admin downloaded file: ${filePath}`, agentId, socket.user.username);
       agentSocket.emit('file:download', { path: filePath });
     }
   });
@@ -853,7 +911,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:delete');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('file_delete', `Admin deleted file: ${filePath}`, agentId);
+      store.addEvent('file_delete', `Admin deleted file: ${filePath}`, agentId, socket.user.username);
       agentSocket.emit('file:delete', { path: filePath });
     }
   });
@@ -881,7 +939,7 @@ dashNsp.on('connection', (socket) => {
       return;
     }
     const fileName = path.basename(filePath);
-    store.addEvent('file_transfer', `Local transfer "${fileName}" to ${destAgentId}`, destAgentId);
+    store.addEvent('file_transfer', `Local transfer "${fileName}" to ${destAgentId}`, destAgentId, socket.user.username);
 
     socket.emit('file:transfer:status', { transferId, status: 'reading', fileName });
     const readResult = localReadFile(filePath);
@@ -909,7 +967,7 @@ dashNsp.on('connection', (socket) => {
       return;
     }
     const fileName = filePath.split(/[/\\]/).pop();
-    store.addEvent('file_transfer', `Transfer "${fileName}" from ${sourceAgentId} to server`, sourceAgentId);
+    store.addEvent('file_transfer', `Transfer "${fileName}" from ${sourceAgentId} to server`, sourceAgentId, socket.user.username);
 
     socket.emit('file:transfer:status', { transferId, status: 'reading', fileName });
     srcSocket.emit('file:download', { path: filePath });
@@ -941,7 +999,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'service:action');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('service_action', `${socket.user.username} ${action} service ${serviceName}`, agentId);
+      store.addEvent('service_action', `${socket.user.username} ${action} service ${serviceName}`, agentId, socket.user.username);
       agentSocket.emit('service:action', { serviceName, action });
     }
   });
@@ -961,7 +1019,7 @@ dashNsp.on('connection', (socket) => {
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
       const username = (socket.user && socket.user.username) || 'admin';
-      store.addEvent('process_kill', `${username} killed PID ${pid}`, agentId);
+      store.addEvent('process_kill', `${username} killed PID ${pid}`, agentId, username);
       agentSocket.emit('processes:kill', { pid, requestId });
     } else {
       socket.emit('processes:kill:result', { agentId, success: false, error: 'Agent not connected', requestId });
@@ -1040,7 +1098,7 @@ dashNsp.on('connection', (socket) => {
   socket.on('screen:start', ({ agentId, quality, fps, monitor }) => {
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('screen_start', `Admin started screen viewing`, agentId);
+      store.addEvent('screen_start', `Admin started screen viewing`, agentId, socket.user.username);
       agentSocket.emit('screen:start', { quality: quality || 50, fps: fps || 2, monitor: monitor || 0 });
     }
   });
@@ -1050,7 +1108,7 @@ dashNsp.on('connection', (socket) => {
     if (!socketHasRole(socket, 'operator')) return denyForbidden(socket, 'file:upload');
     const agentSocket = findAgentSocket(agentId);
     if (agentSocket) {
-      store.addEvent('file_upload', `Admin uploaded file: ${fileName} to ${remotePath}`, agentId);
+      store.addEvent('file_upload', `Admin uploaded file: ${fileName} to ${remotePath}`, agentId, socket.user.username);
       agentSocket.emit('file:upload', { fileName, fileData, remotePath });
     }
   });
@@ -1071,7 +1129,7 @@ dashNsp.on('connection', (socket) => {
     }
 
     const fileName = filePath.split(/[/\\]/).pop();
-    store.addEvent('file_transfer', `Transfer "${fileName}" from ${sourceAgentId} to ${destAgentId}`, sourceAgentId);
+    store.addEvent('file_transfer', `Transfer "${fileName}" from ${sourceAgentId} to ${destAgentId}`, sourceAgentId, socket.user.username);
 
     // Step 1: Read file from source agent
     socket.emit('file:transfer:status', { transferId, status: 'reading', fileName });
@@ -1127,7 +1185,7 @@ dashNsp.on('connection', (socket) => {
       });
       udpSocket.setBroadcast(true);
 
-      store.addEvent('wol_sent', `Wake-on-LAN sent to ${macAddress}`, targetId);
+      store.addEvent('wol_sent', `Wake-on-LAN sent to ${macAddress}`, targetId, socket.user.username);
       socket.emit('wol:result', { success: true, macAddress });
     } catch (error) {
       socket.emit('wol:result', { success: false, error: error.message });
