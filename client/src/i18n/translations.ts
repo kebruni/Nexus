@@ -378,6 +378,21 @@ export const translations = {
   'login.newPassword': { en: 'New password', ru: 'Новый пароль', kz: 'Жаңа құпия сөз' },
   'login.confirmPassword': { en: 'Confirm password', ru: 'Повторите пароль', kz: 'Құпия сөзді растаңыз' },
   'login.savePassword': { en: 'Save password', ru: 'Сохранить пароль', kz: 'Құпия сөзді сақтау' },
+  // ── 2FA login step ──
+  'login.totpTitle': { en: 'Two-factor authentication', ru: 'Двухфакторный код', kz: 'Екі факторлы код' },
+  'login.totpSubtitle': {
+    en: 'Enter the 6-digit code from your authenticator app, or a recovery code.',
+    ru: 'Введите 6-значный код из приложения-аутентификатора или код восстановления.',
+    kz: 'Аутентификатор қосымшасынан 6 таңбалы кодты немесе қалпына келтіру кодын енгізіңіз.',
+  },
+  'login.totpCode': { en: 'Authentication code', ru: 'Код подтверждения', kz: 'Растау коды' },
+  'login.totpSubmit': { en: 'Verify & sign in', ru: 'Проверить и войти', kz: 'Тексеру және кіру' },
+  'login.totpCancel': { en: 'Back to password', ru: 'Назад к паролю', kz: 'Құпия сөзге оралу' },
+  'login.totpHint': {
+    en: 'Code refreshes every 30 s. You can also paste a recovery code.',
+    ru: 'Код обновляется каждые 30 с. Также можно ввести код восстановления.',
+    kz: 'Код әр 30 секунд сайын жаңарады. Қалпына келтіру кодын да енгізуге болады.',
+  },
   'login.passwordTooShort': {
     en: 'Password must be at least 8 characters',
     ru: 'Пароль должен быть не короче 8 символов',
@@ -691,6 +706,45 @@ export const translations = {
     kz: 'Қосымша қорғаныс үшін кіру кезінде екінші қадам (TOTP-код).',
   },
   'settings.soon': { en: 'Soon', ru: 'Скоро', kz: 'Жақын арада' },
+  // ── 2FA panel ──
+  'twofa.enabledPill': { en: 'Enabled', ru: 'Включено', kz: 'Қосулы' },
+  'twofa.disabledPill': { en: 'Disabled', ru: 'Отключено', kz: 'Өшірулі' },
+  'twofa.enable': { en: 'Enable 2FA', ru: 'Включить 2FA', kz: '2FA қосу' },
+  'twofa.disable': { en: 'Disable', ru: 'Отключить', kz: 'Өшіру' },
+  'twofa.regenerate': { en: 'New recovery codes', ru: 'Новые коды восстановления', kz: 'Жаңа қалпына келтіру кодтары' },
+  'twofa.recoveryRemaining': {
+    en: '{count} recovery codes remaining',
+    ru: 'осталось кодов восстановления: {count}',
+    kz: 'қалған қалпына келтіру кодтары: {count}',
+  },
+  'twofa.scanHint': {
+    en: 'Scan the QR with Google Authenticator, Authy, 1Password or any TOTP app, then enter the 6-digit code below.',
+    ru: 'Отсканируйте QR в Google Authenticator, Authy, 1Password или любом TOTP-приложении и введите 6-значный код.',
+    kz: 'QR кодын Google Authenticator, Authy, 1Password немесе кез келген TOTP қосымшасында сканерлеп, 6 таңбалы кодты енгізіңіз.',
+  },
+  'twofa.secretLabel': { en: 'Secret (manual entry)', ru: 'Секрет (для ручного ввода)', kz: 'Құпия (қолмен енгізу үшін)' },
+  'twofa.openInApp': { en: 'Open in authenticator app →', ru: 'Открыть в приложении →', kz: 'Қосымшада ашу →' },
+  'twofa.codeLabel': { en: 'Code from app', ru: 'Код из приложения', kz: 'Қосымшадан код' },
+  'twofa.verifyAndEnable': { en: 'Verify & enable', ru: 'Проверить и включить', kz: 'Тексеру және қосу' },
+  'twofa.saveCodesTitle': { en: 'Save these recovery codes', ru: 'Сохраните эти коды восстановления', kz: 'Бұл қалпына келтіру кодтарын сақтаңыз' },
+  'twofa.saveCodesDesc': {
+    en: 'Each code works once. Store them somewhere safe — they let you sign in if you lose your phone.',
+    ru: 'Каждый код работает один раз. Сохраните их в надёжном месте — они помогут войти при потере телефона.',
+    kz: 'Әр код бір рет жұмыс істейді. Оларды қауіпсіз жерде сақтаңыз — телефонды жоғалтсаңыз кіруге көмектеседі.',
+  },
+  'twofa.copyAll': { en: 'Copy all', ru: 'Скопировать все', kz: 'Барлығын көшіру' },
+  'twofa.savedAndDone': { en: 'I saved them', ru: 'Сохранил', kz: 'Сақтадым' },
+  'twofa.confirmDisable': {
+    en: 'Confirm your password to disable 2FA. After this, sign-in will only need a password.',
+    ru: 'Подтвердите пароль, чтобы отключить 2FA. После этого для входа потребуется только пароль.',
+    kz: '2FA-ны өшіру үшін құпия сөзіңізді растаңыз. Содан кейін кіру үшін тек құпия сөз қажет.',
+  },
+  'twofa.confirmRegenerate': {
+    en: 'Confirm your password to invalidate old recovery codes and generate a new set.',
+    ru: 'Подтвердите пароль, чтобы аннулировать старые коды восстановления и создать новые.',
+    kz: 'Ескі қалпына келтіру кодтарын жою және жаңаларын жасау үшін құпия сөзіңізді растаңыз.',
+  },
+  'twofa.passwordPlaceholder': { en: 'Current password', ru: 'Текущий пароль', kz: 'Ағымдағы құпия сөз' },
   'settings.preferencesTitle': { en: 'Interface preferences', ru: 'Настройки интерфейса', kz: 'Интерфейс баптаулары' },
   'settings.preferencesDesc': {
     en: 'Personalize how the dashboard looks and which language it uses.',

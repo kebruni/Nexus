@@ -21,6 +21,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const config = require('./config');
 const persistence = require('./persistence');
+const totp = require('./totp');
 
 const DEFAULT_ADMIN_PASSWORD = 'admin123';
 const ROLES = ['viewer', 'operator', 'admin'];
@@ -109,6 +110,7 @@ function listUsers() {
     role: u.role,
     mustChangePassword: !!u.mustChangePassword,
     createdAt: u.createdAt || null,
+    totpEnabled: !!u.totpEnabled,
   }));
 }
 
@@ -242,11 +244,9 @@ function logSecurityWarnings() {
 }
 
 // ── Auth API ──────────────────────────────────────────────
-function authenticate(username, password) {
-  const user = getUser(username);
-  if (!user) return null;
-  if (!bcrypt.compareSync(password, user.passwordHash)) return null;
-  const token = jwt.sign(
+
+function issueSessionToken(username, user) {
+  return jwt.sign(
     {
       username,
       role: user.role,
@@ -255,12 +255,158 @@ function authenticate(username, password) {
     JWT_SECRET,
     { expiresIn: '24h' }
   );
+}
+
+function issueTotpTicket(username) {
+  // Short-lived intermediate token issued after a successful password check
+  // when the account has 2FA enabled. Holder must exchange it for a full
+  // session token by submitting a valid TOTP / recovery code.
+  return jwt.sign({ username, pendingTotp: true }, JWT_SECRET, { expiresIn: '5m' });
+}
+
+function authenticate(username, password) {
+  const user = getUser(username);
+  if (!user) return null;
+  if (!bcrypt.compareSync(password, user.passwordHash)) return null;
+
+  if (user.totpEnabled) {
+    return {
+      totpRequired: true,
+      ticket: issueTotpTicket(username),
+      username,
+    };
+  }
+
   return {
-    token,
+    token: issueSessionToken(username, user),
     username,
     role: user.role,
     mustChangePassword: !!user.mustChangePassword,
   };
+}
+
+function consumeRecoveryCode(user, code) {
+  if (!Array.isArray(user.recoveryCodeHashes)) return false;
+  const hash = totp.hashRecoveryCode(code);
+  const idx = user.recoveryCodeHashes.indexOf(hash);
+  if (idx === -1) return false;
+  user.recoveryCodeHashes.splice(idx, 1);
+  persistUsers();
+  return true;
+}
+
+function verifyTotpTicket(ticket, code) {
+  let decoded;
+  try {
+    decoded = jwt.verify(ticket, JWT_SECRET);
+  } catch {
+    return { success: false, error: 'Ticket expired or invalid' };
+  }
+  if (!decoded.pendingTotp || !decoded.username) {
+    return { success: false, error: 'Invalid ticket' };
+  }
+  const user = getUser(decoded.username);
+  if (!user || !user.totpEnabled || !user.totpSecret) {
+    return { success: false, error: 'Account not configured for 2FA' };
+  }
+  const cleaned = (code || '').toString().trim();
+  let used = '';
+  if (/^\d{6}$/.test(cleaned)) {
+    if (!totp.verifyTotp(user.totpSecret, cleaned)) {
+      return { success: false, error: 'Invalid 2FA code' };
+    }
+    used = 'totp';
+  } else if (cleaned) {
+    if (!consumeRecoveryCode(user, cleaned)) {
+      return { success: false, error: 'Invalid 2FA code' };
+    }
+    used = 'recovery';
+  } else {
+    return { success: false, error: 'Code required' };
+  }
+  return {
+    success: true,
+    method: used,
+    token: issueSessionToken(decoded.username, user),
+    username: decoded.username,
+    role: user.role,
+    mustChangePassword: !!user.mustChangePassword,
+    recoveryCodesRemaining: (user.recoveryCodeHashes || []).length,
+  };
+}
+
+// ── 2FA enrollment ────────────────────────────────────────
+
+function startTotpEnroll(username, issuer = 'Nexus') {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (user.totpEnabled) return { success: false, error: '2FA already enabled — disable it first' };
+  const secret = totp.generateSecret();
+  user.pendingTotpSecret = secret;
+  persistUsers();
+  return {
+    success: true,
+    secret,
+    otpauthUrl: totp.buildOtpAuthUrl({ secret, issuer, label: username }),
+  };
+}
+
+function confirmTotpEnroll(username, code) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (user.totpEnabled) return { success: false, error: '2FA already enabled' };
+  if (!user.pendingTotpSecret) return { success: false, error: 'No pending enrollment — start enrollment first' };
+  if (!totp.verifyTotp(user.pendingTotpSecret, (code || '').replace(/\s+/g, ''))) {
+    return { success: false, error: 'Code did not match — try again' };
+  }
+  const recoveryPlain = totp.generateRecoveryCodes(8);
+  user.totpSecret = user.pendingTotpSecret;
+  user.totpEnabled = true;
+  user.totpEnabledAt = new Date().toISOString();
+  user.recoveryCodeHashes = recoveryPlain.map(totp.hashRecoveryCode);
+  delete user.pendingTotpSecret;
+  persistUsers();
+  return { success: true, recoveryCodes: recoveryPlain };
+}
+
+function disableTotp(username, currentPassword) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (!user.totpEnabled) return { success: false, error: '2FA is not enabled' };
+  if (!currentPassword || !bcrypt.compareSync(currentPassword, user.passwordHash)) {
+    return { success: false, error: 'Password verification failed' };
+  }
+  delete user.totpSecret;
+  delete user.pendingTotpSecret;
+  delete user.recoveryCodeHashes;
+  delete user.totpEnabled;
+  delete user.totpEnabledAt;
+  persistUsers();
+  return { success: true };
+}
+
+function getTotpStatus(username) {
+  const user = getUser(username);
+  if (!user) return { enabled: false };
+  return {
+    enabled: !!user.totpEnabled,
+    enabledAt: user.totpEnabledAt || null,
+    recoveryCodesRemaining: Array.isArray(user.recoveryCodeHashes) ? user.recoveryCodeHashes.length : 0,
+    pending: !!user.pendingTotpSecret,
+  };
+}
+
+function regenerateRecoveryCodes(username, currentPassword) {
+  const user = getUser(username);
+  if (!user) return { success: false, error: 'User not found' };
+  if (!user.totpEnabled) return { success: false, error: '2FA is not enabled' };
+  if (!currentPassword || !bcrypt.compareSync(currentPassword, user.passwordHash)) {
+    return { success: false, error: 'Password verification failed' };
+  }
+  const recoveryPlain = totp.generateRecoveryCodes(8);
+  user.recoveryCodeHashes = recoveryPlain.map(totp.hashRecoveryCode);
+  persistUsers();
+  return { success: true, recoveryCodes: recoveryPlain };
 }
 
 function verifyToken(token) {
@@ -348,6 +494,12 @@ module.exports = {
   ROLES,
   ROLE_RANK,
   authenticate,
+  verifyTotpTicket,
+  startTotpEnroll,
+  confirmTotpEnroll,
+  disableTotp,
+  getTotpStatus,
+  regenerateRecoveryCodes,
   changeAdminPassword,
   changeOwnPassword,
   resetUserPassword,

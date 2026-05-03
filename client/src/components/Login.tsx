@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, AlertCircle, Sun, Moon, Globe, Server, ShieldCheck, Activity, Cpu, ArrowRight } from 'lucide-react';
+import { Lock, AlertCircle, Sun, Moon, Globe, Server, ShieldCheck, Activity, Cpu, ArrowRight, KeyRound } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Language } from '../i18n/translations';
@@ -20,6 +20,8 @@ export default function Login({ onLogin }: LoginProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [totpTicket, setTotpTicket] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -40,6 +42,12 @@ export default function Login({ onLogin }: LoginProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
 
+      if (data.totpRequired && data.ticket) {
+        setTotpTicket(data.ticket);
+        setLoading(false);
+        return;
+      }
+
       if (data.mustChangePassword) {
         setPendingToken(data.token);
         setLoading(false);
@@ -53,6 +61,40 @@ export default function Login({ onLogin }: LoginProps) {
       onLogin(data.token);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTotpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!totpTicket) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/login/totp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket: totpTicket, code: totpCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invalid 2FA code');
+      if (data.mustChangePassword) {
+        // Edge case: token is full session but pending pwd-change. Reuse the
+        // existing pre-change-password flow.
+        setPendingToken(data.token);
+        setTotpTicket(null);
+        setTotpCode('');
+        setLoading(false);
+        return;
+      }
+      localStorage.setItem('pc-hub-token', data.token);
+      if (data.username && data.role) {
+        setCurrentUser({ username: data.username, role: data.role as Role });
+      }
+      onLogin(data.token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '2FA verification failed');
     } finally {
       setLoading(false);
     }
@@ -205,10 +247,10 @@ export default function Login({ onLogin }: LoginProps) {
           <div className="nx-login-form-head">
             <span className="nx-eyebrow">{t('login.adminLogin')}</span>
             <h1 className="text-[28px] font-bold tracking-tight mt-2 text-[color:var(--fg-strong)]">
-              {pendingToken ? t('login.changePasswordTitle') : t('login.title')}
+              {totpTicket ? t('login.totpTitle') : pendingToken ? t('login.changePasswordTitle') : t('login.title')}
             </h1>
             <p className="text-[13px] text-[color:var(--fg-muted)] mt-1.5">
-              {pendingToken ? t('login.changePasswordSubtitle') : t('login.subtitle')}
+              {totpTicket ? t('login.totpSubtitle') : pendingToken ? t('login.changePasswordSubtitle') : t('login.subtitle')}
             </p>
           </div>
 
@@ -219,7 +261,39 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           )}
 
-          {pendingToken ? (
+          {totpTicket ? (
+            <form onSubmit={handleTotpSubmit} className="space-y-3">
+              <div>
+                <label className="nx-eyebrow flex items-center gap-1.5">
+                  <KeyRound className="w-3 h-3" /> {t('login.totpCode')}
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9 -]*"
+                  autoComplete="one-time-code"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  className="nx-input mt-2 num-mono tracking-[0.3em] text-center"
+                  placeholder="123 456"
+                  required
+                  autoFocus
+                />
+                <p className="text-[11px] text-[color:var(--fg-muted)] mt-1.5">{t('login.totpHint')}</p>
+              </div>
+              <button type="submit" disabled={loading} className="nx-btn is-primary w-full mt-2">
+                {loading ? '…' : t('login.totpSubmit')}
+                {!loading && <ArrowRight className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTotpTicket(null); setTotpCode(''); setError(''); }}
+                className="nx-btn w-full mt-1"
+              >
+                {t('login.totpCancel')}
+              </button>
+            </form>
+          ) : pendingToken ? (
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div>
                 <label className="nx-eyebrow">{t('login.newPassword')}</label>
