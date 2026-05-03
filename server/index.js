@@ -9,6 +9,12 @@ const store = require('./store');
 const notifier = require('./notifier');
 const {
   authenticate,
+  verifyTotpTicket,
+  startTotpEnroll,
+  confirmTotpEnroll,
+  disableTotp,
+  getTotpStatus,
+  regenerateRecoveryCodes,
   changeAdminPassword,
   authMiddleware,
   requireRole,
@@ -241,7 +247,22 @@ app.post('/api/auth/login', (req, res) => {
   
   // Clear attempts on successful login
   loginAttempts.delete(ip);
+  if (result.totpRequired) {
+    // Password was correct but the account requires a 2FA code to finish login.
+    store.addEvent('login_totp_pending', `${username} entered correct password — awaiting 2FA code`);
+    return res.json({ totpRequired: true, ticket: result.ticket, username: result.username });
+  }
   store.addEvent('admin_login', `Admin ${username} logged in`);
+  res.json(result);
+});
+
+// Step 2 of login when 2FA is enabled — exchange the ticket + code for a session token.
+app.post('/api/auth/login/totp', (req, res) => {
+  const { ticket, code } = req.body || {};
+  if (!ticket || !code) return res.status(400).json({ error: 'ticket and code are required' });
+  const result = verifyTotpTicket(ticket, code);
+  if (!result.success) return res.status(401).json({ error: result.error });
+  store.addEvent('admin_login', `Admin ${result.username} logged in (2FA via ${result.method})`);
   res.json(result);
 });
 
@@ -260,6 +281,41 @@ app.post('/api/auth/change-password', authMiddleware, (req, res) => {
   if (!result.success) return res.status(400).json({ error: result.error });
   store.addEvent('admin_password_changed', `Admin ${req.user.username} changed their password`);
   res.json({ success: true });
+});
+
+// ── 2FA (TOTP) self-service endpoints ─────────────────────
+app.get('/api/auth/2fa/status', authMiddleware, (req, res) => {
+  res.json(getTotpStatus(req.user.username));
+});
+
+app.post('/api/auth/2fa/enroll', authMiddleware, (req, res) => {
+  const result = startTotpEnroll(req.user.username, 'Nexus');
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+app.post('/api/auth/2fa/verify', authMiddleware, (req, res) => {
+  const { code } = req.body || {};
+  const result = confirmTotpEnroll(req.user.username, code);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('2fa_enabled', `User ${req.user.username} enabled 2FA`);
+  res.json(result);
+});
+
+app.post('/api/auth/2fa/disable', authMiddleware, (req, res) => {
+  const { currentPassword } = req.body || {};
+  const result = disableTotp(req.user.username, currentPassword);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('2fa_disabled', `User ${req.user.username} disabled 2FA`);
+  res.json({ success: true });
+});
+
+app.post('/api/auth/2fa/recovery-codes', authMiddleware, (req, res) => {
+  const { currentPassword } = req.body || {};
+  const result = regenerateRecoveryCodes(req.user.username, currentPassword);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  store.addEvent('2fa_recovery_regenerated', `User ${req.user.username} regenerated recovery codes`);
+  res.json(result);
 });
 
 // ── User management (admin only) ──────────────────────────

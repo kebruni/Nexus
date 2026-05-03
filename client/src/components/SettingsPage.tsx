@@ -13,6 +13,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import ChangePasswordDialog from './ChangePasswordDialog';
+import TwoFactorPanel from './TwoFactorPanel';
 import type { Language } from '../i18n/translations';
 
 type Tab = 'profile' | 'security' | 'preferences';
@@ -112,18 +113,7 @@ export default function SettingsPage() {
                   {t('settings.changePassword')}
                 </button>
               </div>
-              <div className="nx-settings-action-card is-soon">
-                <div className="nx-settings-action-icon">
-                  <ShieldCheck className="w-4 h-4" strokeWidth={1.8} />
-                </div>
-                <div className="nx-settings-action-body">
-                  <div className="nx-settings-action-title">
-                    {t('settings.twoFactor')}
-                    <span className="nx-pill is-info ml-2">{t('settings.soon')}</span>
-                  </div>
-                  <div className="nx-settings-action-desc">{t('settings.twoFactorDesc')}</div>
-                </div>
-              </div>
+              <TwoFactorPanel />
             </div>
           )}
 
