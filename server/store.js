@@ -43,6 +43,9 @@ class Store {
     /** @type {Array<object>} Webhook delivery channels for alerts */
     this.webhooks = [];
 
+    /** @type {Array<object>} Cron-style schedules */
+    this.schedules = [];
+
     this.HISTORY_LIMIT = 200;
 
     this._loadFromDisk();
@@ -62,6 +65,7 @@ class Store {
     if (Array.isArray(data.alerts)) this.alerts = data.alerts;
     if (Array.isArray(data.scripts)) this.scripts = data.scripts;
     if (Array.isArray(data.webhooks)) this.webhooks = data.webhooks;
+    if (Array.isArray(data.schedules)) this.schedules = data.schedules;
 
     if (data.chatMessages && typeof data.chatMessages === 'object') {
       for (const [agentId, msgs] of Object.entries(data.chatMessages)) {
@@ -89,6 +93,7 @@ class Store {
       alerts: this.alerts,
       scripts: this.scripts,
       webhooks: this.webhooks,
+      schedules: this.schedules,
       chatMessages: Object.fromEntries(this.chatMessages),
       groups: Object.fromEntries(this.groups),
     };
@@ -588,6 +593,70 @@ class Store {
 
   getWebhook(id) {
     return this.webhooks.find((h) => h.id === id) || null;
+  }
+
+  // ── Schedules ──────────────────────────────────────────
+  // Cron-style scheduled bulk actions. Persisted in the store snapshot
+  // and consulted once per minute by the scheduler runner in
+  // `server/scheduler.js`. Shape:
+  //   { id, name, cron, action, command?, target:{kind,value},
+  //     enabled, createdAt, createdBy, lastRunAt?, lastResult? }
+
+  getSchedules() {
+    return this.schedules;
+  }
+
+  getSchedule(id) {
+    return this.schedules.find((s) => s.id === id) || null;
+  }
+
+  addSchedule(data) {
+    const sched = {
+      id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      name: data.name,
+      cron: data.cron,
+      action: data.action,
+      command: data.command || null,
+      target: data.target,
+      enabled: data.enabled !== false,
+      createdAt: new Date().toISOString(),
+      createdBy: data.createdBy || null,
+      lastRunAt: null,
+      lastResult: null,
+    };
+    this.schedules.push(sched);
+    this._persist();
+    return sched;
+  }
+
+  updateSchedule(id, updates) {
+    const sched = this.schedules.find((s) => s.id === id);
+    if (!sched) return null;
+    const ALLOWED = ['name', 'cron', 'action', 'command', 'target', 'enabled'];
+    for (const k of ALLOWED) {
+      if (k in updates) sched[k] = updates[k];
+    }
+    this._persist();
+    return sched;
+  }
+
+  deleteSchedule(id) {
+    const before = this.schedules.length;
+    this.schedules = this.schedules.filter((s) => s.id !== id);
+    if (this.schedules.length !== before) this._persist();
+  }
+
+  /**
+   * Mark a schedule as just-run with its outcome. The runner calls this
+   * on every tick (regardless of dispatch success) so the UI can show
+   * "last run 3m ago — 5 sent, 2 skipped".
+   */
+  recordScheduleRun(id, result) {
+    const sched = this.schedules.find((s) => s.id === id);
+    if (!sched) return;
+    sched.lastRunAt = new Date().toISOString();
+    sched.lastResult = result;
+    this._persist();
   }
 }
 
