@@ -32,6 +32,7 @@ import {
   Cpu,
   ScrollText,
   CalendarClock,
+  DatabaseBackup,
 } from 'lucide-react';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import CommandPalette from './CommandPalette';
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/users', key: 'nav.users', icon: ShieldCheck },
       { to: '/dashboard/webhooks', key: 'nav.webhooks', icon: Webhook },
       { to: '/dashboard/audit', key: 'nav.audit', icon: ScrollText },
+      { to: '/dashboard/backup', key: 'nav.backup', icon: DatabaseBackup },
     ],
   },
 ];
