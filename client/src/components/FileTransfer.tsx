@@ -118,7 +118,7 @@ export default function FileTransfer() {
   const [remoteActionsOpen, setRemoteActionsOpen] = useState(false);
 
   /* -- load local files via File System Access API -- */
-  const loadFilesFromHandle = async (handle: FileSystemDirectoryHandle, stack: FileSystemDirectoryHandle[]) => {
+  const loadFilesFromHandle = useCallback(async (handle: FileSystemDirectoryHandle, stack: FileSystemDirectoryHandle[]) => {
     setLocal(p => ({ ...p, loading: true, error: '' }));
     try {
       const files: FileItem[] = [];
@@ -191,7 +191,7 @@ export default function FileTransfer() {
     } catch (error: unknown) {
       setLocal(p => ({ ...p, loading: false, error: error instanceof Error ? error.message : 'Failed to load the folder' }));
     }
-  };
+  }, [t]);
 
   const handleSelectRoot = async () => {
     try {
@@ -223,7 +223,7 @@ export default function FileTransfer() {
     } catch (error: unknown) {
       setLocal(p => ({ ...p, error: `Failed to navigate: ${error instanceof Error ? error.message : 'Unknown error'}` }));
     }
-  }, [local.handleStack]);
+  }, [local.handleStack, loadFilesFromHandle]);
 
   const navigateLocalUp = useCallback(() => {
     if (!local.handleStack || local.handleStack.length <= 1) return;
@@ -231,14 +231,14 @@ export default function FileTransfer() {
     const newStack = local.handleStack.slice(0, -1);
     const currentHandle = newStack[newStack.length - 1];
     loadFilesFromHandle(currentHandle, newStack);
-  }, [local.handleStack]);
+  }, [local.handleStack, loadFilesFromHandle]);
 
   const refreshLocalDirectory = useCallback(() => {
     if (!local.handleStack || local.handleStack.length === 0) return;
     
     const currentHandle = local.handleStack[local.handleStack.length - 1];
     loadFilesFromHandle(currentHandle, local.handleStack);
-  }, [local.handleStack]);
+  }, [local.handleStack, loadFilesFromHandle]);
 
   /* -- agent list -- */
   useEffect(() => {

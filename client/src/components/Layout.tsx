@@ -139,6 +139,8 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/webhooks', 'nav.webhooks'],
       ['/dashboard/schedules', 'nav.schedules'],
       ['/dashboard/audit', 'nav.audit'],
+      ['/dashboard/backup', 'nav.backup'],
+      ['/dashboard/settings', 'nav.settings'],
       ['/dashboard/computer', 'nav.computerDetails'],
     ];
     for (const [prefix, key] of map) {

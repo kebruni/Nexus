@@ -429,7 +429,11 @@ export default function AuditLogPage() {
                         isDark ? 'text-slate-400' : 'text-gray-600'
                       } text-xs hidden xl:table-cell`}
                     >
-                      {agentLabel(ev.agentId)}
+                      {ev.agentId ? (
+                        agentLabel(ev.agentId)
+                      ) : (
+                        <span className={isDark ? 'text-slate-600' : 'text-gray-300'}>—</span>
+                      )}
                     </td>
                     <td
                       className={`px-4 py-2.5 ${
