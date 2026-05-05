@@ -141,6 +141,9 @@ const SQL = {
      VALUES (?,?,?,?,?,?,?)`
   ),
   deletePushSubByEndpoint: db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?'),
+  deletePushSubByEndpointForUser: db.prepare(
+    'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?'
+  ),
   deletePushSubsByUser: db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?'),
   selectPushSubsByUser: db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?'),
   selectAllPushSubs: db.prepare('SELECT * FROM push_subscriptions'),
@@ -938,6 +941,13 @@ class Store {
 
   removePushSubscriptionByEndpoint(endpoint) {
     return SQL.deletePushSubByEndpoint.run(endpoint).changes;
+  }
+
+  // User-scoped variant. Routes that delete in response to a user
+  // request use this so a logged-in user can never remove someone
+  // else's subscription, even if they know the endpoint URL.
+  removePushSubscriptionByEndpointForUser(endpoint, userId) {
+    return SQL.deletePushSubByEndpointForUser.run(endpoint, userId).changes;
   }
 
   removeAllPushSubscriptionsForUser(userId) {

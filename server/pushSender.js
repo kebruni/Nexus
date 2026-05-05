@@ -17,19 +17,20 @@ const persistence = require('./persistence');
 let secrets = persistence.loadSecrets() || {};
 
 function ensureVapid() {
+  // Subject is required by web-push (must be mailto: or https:). If the
+  // secrets file was hand-edited and lost it, regenerate before the
+  // early-return so we never call setVapidDetails(undefined, ...).
+  if (!secrets.vapidSubject) {
+    const tag = crypto.randomBytes(8).toString('hex');
+    secrets.vapidSubject = `mailto:nexus-${tag}@local`;
+    persistence.saveSecrets(secrets);
+  }
   if (secrets.vapidPublicKey && secrets.vapidPrivateKey) {
     return { publicKey: secrets.vapidPublicKey, privateKey: secrets.vapidPrivateKey, source: 'persisted' };
   }
   const generated = webPush.generateVAPIDKeys();
   secrets.vapidPublicKey = generated.publicKey;
   secrets.vapidPrivateKey = generated.privateKey;
-  if (!secrets.vapidSubject) {
-    // Spec says VAPID subject must be a mailto: or https: URL. We don't
-    // know the operator's email — generate a synthetic one tied to the
-    // server's machine-id. Push services accept this.
-    const tag = crypto.randomBytes(8).toString('hex');
-    secrets.vapidSubject = `mailto:nexus-${tag}@local`;
-  }
   persistence.saveSecrets(secrets);
   return { publicKey: generated.publicKey, privateKey: generated.privateKey, source: 'generated' };
 }

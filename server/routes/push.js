@@ -43,7 +43,9 @@ module.exports = function registerPush(app, { store, auth }) {
     const endpoint = req.body && req.body.endpoint;
     let removed;
     if (endpoint) {
-      removed = store.removePushSubscriptionByEndpoint(endpoint);
+      // User-scoped: never delete another user's subscription, even
+      // if the caller knows the endpoint URL.
+      removed = store.removePushSubscriptionByEndpointForUser(endpoint, req.user.username);
     } else {
       removed = store.removeAllPushSubscriptionsForUser(req.user.username);
     }
