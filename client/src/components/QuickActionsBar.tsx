@@ -54,7 +54,11 @@ export default function QuickActionsBar({ agentId, agentOs }: Props) {
   const { t } = useLanguage();
   const user = useCurrentUser();
   const [actions, setActions] = useState<QuickAction[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Initial state must be true: the visibility guard hides the bar
+  // when `!loading && visible.length === 0`. Starting at `false`
+  // would briefly hide the bar on first render, then show it once
+  // the fetch completes — pushing the tabs section down.
+  const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
