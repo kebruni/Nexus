@@ -33,6 +33,7 @@ import {
   ScrollText,
   CalendarClock,
   DatabaseBackup,
+  Zap,
 } from 'lucide-react';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import CommandPalette from './CommandPalette';
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/sftp', key: 'nav.sftp', icon: ArrowLeftRight },
       { to: '/dashboard/chat', key: 'nav.chat', icon: MessageSquare },
       { to: '/dashboard/scripts', key: 'nav.scripts', icon: FileCode },
+      { to: '/dashboard/quick-actions', key: 'nav.quickActions', icon: Zap },
       { to: '/dashboard/processes', key: 'nav.processes', icon: Cpu },
       { to: '/dashboard/schedules', key: 'nav.schedules', icon: CalendarClock },
     ],
@@ -133,6 +135,7 @@ export default function Layout({ onLogout }: LayoutProps) {
       ['/dashboard/alerts', 'nav.alerts'],
       ['/dashboard/analytics', 'nav.analytics'],
       ['/dashboard/scripts', 'nav.scripts'],
+      ['/dashboard/quick-actions', 'nav.quickActions'],
       ['/dashboard/groups', 'nav.groups'],
       ['/dashboard/processes', 'nav.processes'],
       ['/dashboard/users', 'nav.users'],

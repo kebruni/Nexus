@@ -127,6 +127,19 @@ db.exec(`
     last_result_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS quick_actions (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    description TEXT,
+    command     TEXT NOT NULL,
+    os          TEXT NOT NULL DEFAULT 'all',
+    icon        TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL,
+    created_by  TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_qa_sort ON quick_actions(sort_order, created_at);
+
   CREATE TABLE IF NOT EXISTS push_subscriptions (
     id          TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL,
@@ -278,6 +291,39 @@ function migrateFromLegacyJson() {
 }
 
 migrateFromLegacyJson();
+
+// ── Default quick-actions seed (idempotent) ──────────────
+// Seeded once on first boot so admins have something useful to click
+// from day one. The `seeded_quick_actions` meta flag prevents reseeding
+// if the user later deletes them — they stay deleted.
+function seedDefaultQuickActions() {
+  const flag = db.prepare('SELECT value FROM meta WHERE key = ?').get('seeded_quick_actions');
+  if (flag) return;
+  const now = new Date().toISOString();
+  const insert = db.prepare(
+    'INSERT INTO quick_actions(id, name, description, command, os, icon, sort_order, created_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)'
+  );
+  const defaults = [
+    { name: 'Restart Explorer',     desc: 'Kill and relaunch explorer.exe (fixes stuck taskbar / desktop)', cmd: 'taskkill /F /IM explorer.exe & start explorer.exe', os: 'windows', icon: 'RefreshCw' },
+    { name: 'Flush DNS cache',      desc: 'Clear cached DNS records',                                       cmd: 'ipconfig /flushdns',                                  os: 'windows', icon: 'Database' },
+    { name: 'Renew IP address',     desc: 'Release and renew DHCP lease',                                   cmd: 'ipconfig /release && ipconfig /renew',                os: 'windows', icon: 'Wifi' },
+    { name: 'Reset Winsock',        desc: 'Reset network stack (requires reboot to take effect)',           cmd: 'netsh winsock reset',                                 os: 'windows', icon: 'Network' },
+    { name: 'Clear temp files',     desc: 'Delete %TEMP% directory contents',                               cmd: 'del /q /f /s %TEMP%\\*',                              os: 'windows', icon: 'Trash2' },
+    { name: 'List active users',    desc: 'Show users currently signed in',                                 cmd: 'query user',                                          os: 'windows', icon: 'Users' },
+    { name: 'Update group policy',  desc: 'Force gpupdate /force',                                          cmd: 'gpupdate /force',                                     os: 'windows', icon: 'ShieldCheck' },
+    { name: 'Disk free space',      desc: 'Show free space per drive',                                      cmd: 'wmic logicaldisk get caption,freespace,size',          os: 'windows', icon: 'HardDrive' },
+  ];
+  const tx = db.transaction(() => {
+    defaults.forEach((d, i) => {
+      const id = `seed-${i}-${Math.random().toString(36).slice(2, 8)}`;
+      insert.run(id, d.name, d.desc, d.cmd, d.os, d.icon, i * 10, now, null);
+    });
+    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('seeded_quick_actions', now);
+  });
+  tx();
+  console.log(`[DB] Seeded ${defaults.length} default quick-actions`);
+}
+seedDefaultQuickActions();
 
 console.log(`[DB] SQLite ready at ${DB_FILE}`);
 

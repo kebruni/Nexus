@@ -969,6 +969,27 @@ export const translations = {
     ru: 'Тестовое уведомление доставлено на {n} из {total} устройств.',
     kz: '{n}/{total} құрылғыға тест хабарландыруы жеткізілді.',
   },
+
+  // ── Quick actions ──
+  'nav.quickActions':           { en: 'Quick actions',                                      ru: 'Быстрые действия',                                      kz: 'Жылдам әрекеттер' },
+  'quickActions.title':         { en: 'Quick actions',                                      ru: 'Быстрые действия',                                      kz: 'Жылдам әрекеттер' },
+  'quickActions.libraryTitle':  { en: 'Quick actions library',                              ru: 'Библиотека быстрых действий',                           kz: 'Жылдам әрекеттер кітапханасы' },
+  'quickActions.librarySubtitle': { en: 'One-click commands shown on the agent detail page', ru: 'Команды в один клик на странице агента',                kz: 'Агент бетіндегі бір рет басу командалары' },
+  'quickActions.add':           { en: 'New action',                                         ru: 'Добавить',                                              kz: 'Жаңа әрекет' },
+  'quickActions.create':        { en: 'Create quick action',                                ru: 'Создать быстрое действие',                              kz: 'Жылдам әрекет жасау' },
+  'quickActions.edit':          { en: 'Edit quick action',                                  ru: 'Изменить быстрое действие',                             kz: 'Жылдам әрекетті өңдеу' },
+  'quickActions.name':          { en: 'Name',                                               ru: 'Имя',                                                   kz: 'Аты' },
+  'quickActions.description':   { en: 'Description',                                        ru: 'Описание',                                              kz: 'Сипаттама' },
+  'quickActions.command':       { en: 'Command',                                            ru: 'Команда',                                               kz: 'Команда' },
+  'quickActions.os':            { en: 'OS',                                                 ru: 'ОС',                                                    kz: 'ОЖ' },
+  'quickActions.icon':          { en: 'Icon',                                               ru: 'Иконка',                                                kz: 'Белгіше' },
+  'quickActions.running':       { en: 'Running…',                                           ru: 'Выполняется…',                                          kz: 'Орындалуда…' },
+  'quickActions.confirmRun':    { en: 'Run "{name}" on this agent?',                        ru: 'Запустить «{name}» на агенте?',                         kz: '«{name}» агентте іске қосылсын ба?' },
+  'quickActions.confirmDelete': { en: 'Delete "{name}"?',                                   ru: 'Удалить «{name}»?',                                     kz: '«{name}» жойылсын ба?' },
+  'quickActions.runSuccess':    { en: '"{name}" dispatched.',                               ru: '«{name}» отправлено.',                                  kz: '«{name}» жіберілді.' },
+  'quickActions.errNameCmd':    { en: 'Name and command are required',                      ru: 'Имя и команда обязательны',                             kz: 'Аты мен команда қажет' },
+  'quickActions.emptyTitle':    { en: 'No quick actions yet',                               ru: 'Быстрых действий пока нет',                             kz: 'Әзірге жылдам әрекеттер жоқ' },
+  'quickActions.emptyDesc':     { en: 'Add commands you run often — they appear as one-click buttons on every agent page.', ru: 'Добавьте часто используемые команды — они появятся кнопками на странице каждого агента.', kz: 'Жиі қолданатын командаларды қосыңыз — олар әр агент бетінде батырма ретінде шығады.' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

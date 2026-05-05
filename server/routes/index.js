@@ -17,4 +17,5 @@ module.exports = function registerRoutes(app, deps) {
   require('./scripts')(app, deps);
   require('./backup')(app, deps);
   require('./push')(app, deps);
+  require('./quickActions')(app, deps);
 };
