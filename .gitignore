@@ -1,38 +1,46 @@
+# ── Dependencies ─────────────────────────────────────────
 node_modules/
 client/node_modules/
 server/node_modules/
 agent/node_modules/
 
+# Root package-lock isn't meaningful — root package.json has no deps
+/package-lock.json
+
+# ── Build output ─────────────────────────────────────────
 client/dist/
 server/dist/
 agent/dist/
 agent/dist-gui/
 agent/dist-gui-2/
 agent/dist-gui-3/
-agent/client/dist/
 
-# Local test artifacts (Devin)
+# ── Runtime state ────────────────────────────────────────
+# Persisted store + auto-generated secrets (server)
+.data/
+# Agent per-machine identity — lives in userData at runtime
+agent/.agent-id
+# Agent config written by the "[edit]" first-run dialog
+agent/config.json
+
+# ── CI-injected defaults ─────────────────────────────────
+agent/installerDefaults.json
+
+# ── Local test artifacts ─────────────────────────────────
 test-screens*/
 test-plan*.md
 test-report*.md
+*.recording.*
 
-# Persistence layer runtime data (server)
-.data/
-
-# Agent runtime config (writable userData area in dev)
-agent/.agent-id
-
-# Build-time installer defaults (written by CI from secrets, never committed)
-agent/installerDefaults.json
-
+# ── Editors / OS ─────────────────────────────────────────
 *.log
 *.local
 *.bak
 *.bak.*
 *.tmp
 *.temp
-
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.swp
