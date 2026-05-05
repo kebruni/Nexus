@@ -8,7 +8,7 @@
 
 | Компонент   | Где запускается                | Что делает                                                                      |
 |-------------|--------------------------------|----------------------------------------------------------------------------------|
-| **server**  | Серверный ПК (один)            | REST + Socket.IO. Хранит сессии, события, алерты, чат, скрипты в `.data/*.json`. |
+| **server**  | Серверный ПК (один)            | REST + Socket.IO. Хранит сессии, события, алерты, чат, скрипты в SQLite (`.data/nexus.db`). |
 | **client**  | Серверный ПК (статика)         | Веб-дашборд, билдится в `client/dist/` и раздаётся самим сервером на `/`.        |
 | **agent**   | Каждый клиентский ПК           | Электрон-приложение. Снимает метрики, исполняет команды, стримит экран.          |
 
@@ -143,14 +143,22 @@ pm2-startup install
 
 ### 3.3 Где хранятся данные
 
-| Файл                    | Содержимое                                                  |
-|-------------------------|-------------------------------------------------------------|
-| `.data/store.json`      | events, alerts, chat, scripts, groups (дебаунс 1 с)         |
-| `.data/secrets.json`    | JWT_SECRET, AGENT_SECRET, bcrypt-хэш админ-пароля           |
+| Файл                            | Содержимое                                                  |
+|---------------------------------|-------------------------------------------------------------|
+| `.data/nexus.db`                | events, alerts, chat, scripts, groups, webhooks, schedules (SQLite, WAL) |
+| `.data/nexus.db-wal`, `-shm`    | служебные файлы SQLite (write-ahead log + shared memory)    |
+| `.data/secrets.json`            | JWT_SECRET, AGENT_SECRET, bcrypt-хэш админ-пароля, TOTP-секреты |
+| `.data/store.json.migrated`     | (если был апгрейд с pre-SQLite версии) старый JSON, можно удалить после проверки |
 
-Оба файла идут с правами `0600` и **не должны** попадать в git
-(`.gitignore` уже настроен). Для бэкапа достаточно скопировать папку
-`.data/`.
+`.data/` имеет права `0700`, файлы внутри `0600` и **не должны**
+попадать в git (`.gitignore` уже настроен). Для бэкапа достаточно
+скопировать папку `.data/` целиком (либо использовать кнопку
+`Settings → Backup → Export` в дашборде — она берёт всё кроме
+`secrets.json`).
+
+При первом запуске на установке, обновлённой с pre-SQLite версии,
+сервер автоматически импортирует `.data/store.json` в `nexus.db` и
+переименовывает старый файл в `.data/store.json.migrated`.
 
 ---
 
@@ -230,7 +238,7 @@ node agent/index.js --server=http://192.168.1.50:3000 --agent-key=<key>
 │  Браузер админа  │  Socket.IO          │  serves /socket.io  │
 │  ┌────────────┐  │  /dashboard         │  serves /  (SPA)    │
 │  │ React SPA  │  │ ─────────────────▶  │                     │
-│  │ client/dist│  │                     │  .data/store.json   │
+│  │ client/dist│  │                     │  .data/nexus.db     │
 │  └────────────┘  │  events, agents,    │  .data/secrets.json │
 └──────────────────┘  alerts             └─────────────────────┘
 ```
@@ -251,11 +259,12 @@ node agent/index.js --server=http://192.168.1.50:3000 --agent-key=<key>
    `cmd:execute` / `file:list` / etc. Агент выполняет и шлёт обратно
    результат, который сервер форвардит в дашборд.
 5. Все мутирующие операции (новый event, alert, chat-сообщение,
-   сохранение скрипта) проходят через `store._persist()` →
-   `persistence.scheduleStoreSave()` → атомарный write `.data/store.json.tmp`
-   → `rename`. Дебаунс 1 сек коалесцирует частые мутации.
-6. На `SIGINT`/`SIGTERM` сервер делает `store.flushSync()` и закрывает
-   HTTP-сервер — снапшот гарантированно ложится на диск.
+   сохранение скрипта) пишутся напрямую в SQLite (`.data/nexus.db`,
+   WAL-режим) через prepared statements в `server/store.js`. Индексы
+   стоят на `type`, `agent_id`, `actor`, `timestamp` — фильтры
+   audit-страницы за O(log n).
+6. На `SIGINT`/`SIGTERM` сервер закрывает HTTP-сервер; SQLite WAL уже
+   на диске, дополнительного flush не требуется.
 
 ### 5.1 Безопасность
 
@@ -278,7 +287,7 @@ node agent/index.js --server=http://192.168.1.50:3000 --agent-key=<key>
 | Дашборд открывается, но `/devices` пустой            | Агент не подключился. На клиенте: проверь `SERVER_URL`, попробуй с того же ПК `curl http://<ip>:3000/api/health`. |
 | Сервер логает `[Agent Connection Refused] invalid agent key` | На клиенте `AGENT_KEY` не совпадает с `secrets.json` сервера.                                  |
 | Логин циклится через форму смены пароля              | В localStorage браузера остался токен с `mustChangePassword:true`. Открой DevTools → Application → Local Storage → удалить `pc-hub-token`, перелогинься. |
-| После рестарта сервер потерял chat / alerts          | Файл `.data/store.json` не перезаписался. Проверь права на папку `.data/` (должна быть доступна на запись пользователю, под которым запущен node). |
+| После рестарта сервер потерял chat / alerts          | Файл `.data/nexus.db` не записался. Проверь права на папку `.data/` (должна быть доступна на запись пользователю, под которым запущен node). |
 | `[WARN] robot-js not available` в логе агента        | Это нормально на Linux-агенте: remote-input через robot-js работает только на Windows. Все остальные функции (метрики, screen-stream, file ops, terminal) работают.|
 
 ---
