@@ -20,6 +20,7 @@ const TerminalPage = lazy(() => import('./components/TerminalPage'));
 const ChatPage = lazy(() => import('./components/ChatPage'));
 const NotFound = lazy(() => import('./components/NotFound'));
 const ScriptsPage = lazy(() => import('./components/ScriptsPage'));
+const QuickActionsLibraryPage = lazy(() => import('./components/QuickActionsLibraryPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
 const WebhooksPage = lazy(() => import('./components/WebhooksPage'));
@@ -119,6 +120,7 @@ function App() {
                 <Route path="events" element={<EventLog />} />
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="scripts" element={<ScriptsPage />} />
+                <Route path="quick-actions" element={<QuickActionsLibraryPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="webhooks" element={<WebhooksPage />} />

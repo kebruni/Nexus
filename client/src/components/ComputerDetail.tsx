@@ -34,6 +34,7 @@ import {
   Area,
 } from 'recharts';
 import Services from './Services';
+import QuickActionsBar from './QuickActionsBar';
 
 const API_BASE = '/api';
 
@@ -356,6 +357,9 @@ export default function ComputerDetail() {
           )}
         </div>
       )}
+
+      {/* Quick actions */}
+      <QuickActionsBar agentId={id!} agentOs={agent.platform} />
 
       {/* Tabs */}
       <div className={`border-b ${isDark ? 'border-zinc-800/80' : 'border-gray-200'}`}>

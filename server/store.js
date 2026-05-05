@@ -135,6 +135,20 @@ const SQL = {
   wipeWebhooks: db.prepare('DELETE FROM webhooks'),
   wipeSchedules: db.prepare('DELETE FROM schedules'),
 
+  // quick actions
+  insertQuickAction: db.prepare(
+    `INSERT INTO quick_actions(id, name, description, command, os, icon, sort_order, created_at, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?)`
+  ),
+  updateQuickAction: db.prepare(
+    `UPDATE quick_actions SET name=?, description=?, command=?, os=?, icon=?, sort_order=? WHERE id=?`
+  ),
+  deleteQuickAction: db.prepare('DELETE FROM quick_actions WHERE id = ?'),
+  selectQuickAction: db.prepare('SELECT * FROM quick_actions WHERE id = ?'),
+  selectAllQuickActions: db.prepare(
+    'SELECT * FROM quick_actions ORDER BY sort_order ASC, created_at ASC'
+  ),
+
   // push subscriptions
   insertPushSub: db.prepare(
     `INSERT OR REPLACE INTO push_subscriptions(id, user_id, endpoint, p256dh, auth_key, user_agent, created_at)
@@ -219,6 +233,19 @@ function rowToSchedule(r) {
     createdBy: r.created_by,
     lastRunAt: r.last_run_at,
     lastResult: parseJsonSafe(r.last_result_json, null),
+  };
+}
+function rowToQuickAction(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    command: r.command,
+    os: r.os,
+    icon: r.icon,
+    sortOrder: r.sort_order,
+    createdAt: r.created_at,
+    createdBy: r.created_by,
   };
 }
 function rowToPushSub(r) {
@@ -919,6 +946,56 @@ class Store {
 
   recordScheduleRun(id, result) {
     SQL.recordRun.run(new Date().toISOString(), JSON.stringify(result || {}), id);
+  }
+
+  // ── Quick actions ──────────────────────────────────────
+  // Saved one-click commands shown on the agent detail page.
+  // Distinct from the user-script library (long, multi-line scripts):
+  // these are short, OS-targeted, and have an icon for the button row.
+
+  getQuickActions() {
+    return SQL.selectAllQuickActions.all().map(rowToQuickAction);
+  }
+
+  getQuickAction(id) {
+    const row = SQL.selectQuickAction.get(id);
+    return row ? rowToQuickAction(row) : null;
+  }
+
+  addQuickAction(data, createdBy) {
+    const id = `qa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    SQL.insertQuickAction.run(
+      id,
+      data.name,
+      data.description || null,
+      data.command,
+      data.os || 'all',
+      data.icon || null,
+      Number.isFinite(data.sortOrder) ? data.sortOrder : 100,
+      now,
+      createdBy || null,
+    );
+    return this.getQuickAction(id);
+  }
+
+  updateQuickAction(id, data) {
+    const existing = this.getQuickAction(id);
+    if (!existing) return null;
+    SQL.updateQuickAction.run(
+      data.name ?? existing.name,
+      data.description ?? existing.description,
+      data.command ?? existing.command,
+      data.os ?? existing.os,
+      data.icon ?? existing.icon,
+      Number.isFinite(data.sortOrder) ? data.sortOrder : existing.sortOrder,
+      id,
+    );
+    return this.getQuickAction(id);
+  }
+
+  deleteQuickAction(id) {
+    return SQL.deleteQuickAction.run(id).changes;
   }
 
   // ── Push subscriptions ─────────────────────────────────
