@@ -43,4 +43,13 @@ module.exports = function registerUsers(app, { store, auth }) {
     store.addEvent('user_password_reset', `Password reset for "${target}" by ${req.user.username}`, null, req.user.username);
     res.json({ success: true });
   });
+
+  // Manually clear an account lockout. Useful when a user gets locked out
+  // after typo-storming the login form.
+  app.post('/api/users/:username/unlock', authMiddleware, requireRole('admin'), (req, res) => {
+    const target = req.params.username;
+    store.clearLockout(target);
+    store.addEvent('user_unlocked', `Lockout cleared for "${target}" by ${req.user.username}`, null, req.user.username);
+    res.json({ success: true });
+  });
 };

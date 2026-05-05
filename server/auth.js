@@ -53,6 +53,83 @@ const AGENT_SECRET = agentSecretInfo.value;
 config.JWT_SECRET = JWT_SECRET;
 config.AGENT_SECRET = AGENT_SECRET;
 
+// ── Per-agent tokens ──────────────────────────────────────
+// secrets.agentTokens: { [tokenId]: { hash, label, createdBy, createdAt, lastUsedAt, revokedAt } }
+//
+// Tokens are random, stored hashed (sha256), shown to admins only at creation.
+// Wire format: "nxa_<id>_<secret>" so we can identify a token quickly without
+// scanning the whole table. Replaces the shared AGENT_SECRET on a per-agent
+// basis — the legacy shared secret still works for agents that haven't been
+// migrated to a per-agent token yet.
+if (!secrets.agentTokens || typeof secrets.agentTokens !== 'object') {
+  secrets.agentTokens = {};
+  persistence.saveSecrets(secrets);
+}
+
+function _hashToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+function issueAgentToken(label, createdBy) {
+  const id = crypto.randomBytes(6).toString('hex');                 // 12 chars
+  const secret = crypto.randomBytes(24).toString('base64url');      // ~32 chars
+  const plainToken = `nxa_${id}_${secret}`;
+  secrets.agentTokens[id] = {
+    hash: _hashToken(plainToken),
+    label: String(label || '').slice(0, 80) || 'Untitled',
+    createdBy: String(createdBy || 'system').slice(0, 80),
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+    revokedAt: null,
+  };
+  persistence.saveSecrets(secrets);
+  return { id, plainToken };
+}
+
+function verifyAgentToken(plainToken) {
+  if (!plainToken || typeof plainToken !== 'string' || !plainToken.startsWith('nxa_')) {
+    return null;
+  }
+  const parts = plainToken.split('_');
+  if (parts.length < 3) return null;
+  const id = parts[1];
+  const entry = secrets.agentTokens[id];
+  if (!entry) return null;
+  if (entry.revokedAt) return null;
+  const want = _hashToken(plainToken);
+  // Constant-time comparison to avoid timing leaks.
+  const a = Buffer.from(want, 'hex');
+  const b = Buffer.from(entry.hash, 'hex');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  return { id, label: entry.label };
+}
+
+function touchAgentToken(id) {
+  const entry = secrets.agentTokens[id];
+  if (!entry) return;
+  entry.lastUsedAt = new Date().toISOString();
+  persistence.saveSecrets(secrets);
+}
+
+function revokeAgentToken(id) {
+  const entry = secrets.agentTokens[id];
+  if (!entry || entry.revokedAt) return false;
+  entry.revokedAt = new Date().toISOString();
+  persistence.saveSecrets(secrets);
+  return true;
+}
+
+function listAgentTokens() {
+  return Object.entries(secrets.agentTokens).map(([id, t]) => ({
+    id,
+    label: t.label,
+    createdBy: t.createdBy,
+    createdAt: t.createdAt,
+    lastUsedAt: t.lastUsedAt,
+    revokedAt: t.revokedAt || null,
+  }));
+}
+
 // ── User store ────────────────────────────────────────────
 // secrets.users: { [username]: { passwordHash, role, mustChangePassword, createdAt } }
 
@@ -114,12 +191,43 @@ function listUsers() {
   }));
 }
 
+/**
+ * Server-side password policy. Returns null if the password is acceptable,
+ * an error string otherwise.
+ *
+ * Rules:
+ *   - At least 10 characters.
+ *   - At most 256 characters (sanity cap).
+ *   - At least 3 of the 4 character classes: lowercase, uppercase, digit, symbol.
+ *   - Not the default admin password.
+ *   - Not equal to the username (case-insensitive).
+ */
+function validatePassword(password, username) {
+  if (!password || typeof password !== 'string') return 'Password is required';
+  if (password.length < 10) return 'Password must be at least 10 characters';
+  if (password.length > 256) return 'Password is too long (max 256 chars)';
+  if (password === DEFAULT_ADMIN_PASSWORD) return 'Password cannot be the default password';
+  if (username && password.toLowerCase() === String(username).toLowerCase()) {
+    return 'Password cannot equal the username';
+  }
+  let classes = 0;
+  if (/[a-z]/.test(password)) classes++;
+  if (/[A-Z]/.test(password)) classes++;
+  if (/[0-9]/.test(password)) classes++;
+  if (/[^A-Za-z0-9]/.test(password)) classes++;
+  if (classes < 3) {
+    return 'Password must include at least 3 of: lowercase, uppercase, digit, symbol';
+  }
+  return null;
+}
+
 function createUser({ username, password, role }) {
   if (!username || typeof username !== 'string' || !/^[a-zA-Z0-9._-]{2,32}$/.test(username)) {
     return { success: false, error: 'Invalid username (2-32 chars, alphanumerics / . _ -)' };
   }
-  if (!password || typeof password !== 'string' || password.length < 8) {
-    return { success: false, error: 'Password must be at least 8 characters' };
+  const pwdErr = validatePassword(password, username);
+  if (pwdErr) {
+    return { success: false, error: pwdErr };
   }
   if (!ROLES.includes(role)) {
     return { success: false, error: `Role must be one of ${ROLES.join(', ')}` };
@@ -176,9 +284,8 @@ function updateUserRole(username, newRole) {
 function resetUserPassword(username, newPassword) {
   const user = getUser(username);
   if (!user) return { success: false, error: 'User not found' };
-  if (!newPassword || newPassword.length < 8) {
-    return { success: false, error: 'Password must be at least 8 characters' };
-  }
+  const pwdErr = validatePassword(newPassword, username);
+  if (pwdErr) return { success: false, error: pwdErr };
   user.passwordHash = bcrypt.hashSync(newPassword, 10);
   user.mustChangePassword = true; // force re-change on next login
   persistUsers();
@@ -194,11 +301,10 @@ function changeOwnPassword(username, currentPassword, newPassword) {
   if (!bcrypt.compareSync(currentPassword, user.passwordHash)) {
     return { success: false, error: 'Current password is incorrect' };
   }
-  if (newPassword.length < 8) {
-    return { success: false, error: 'New password must be at least 8 characters' };
-  }
-  if (newPassword === DEFAULT_ADMIN_PASSWORD) {
-    return { success: false, error: 'New password cannot be the default password' };
+  const pwdErr = validatePassword(newPassword, username);
+  if (pwdErr) return { success: false, error: pwdErr };
+  if (newPassword === currentPassword) {
+    return { success: false, error: 'New password must differ from the current one' };
   }
   user.passwordHash = bcrypt.hashSync(newPassword, 10);
   user.mustChangePassword = false;
@@ -486,7 +592,27 @@ function socketAuthMiddleware(socket, next) {
 
 function agentAuthMiddleware(socket, next) {
   const agentKey = socket.handshake.auth.agentKey;
-  if (agentKey !== AGENT_SECRET) return next(new Error('Invalid agent key'));
+  if (!agentKey) return next(new Error('Authentication required'));
+
+  // Per-agent token (preferred). Format: nxa_<id>_<secret>.
+  if (typeof agentKey === 'string' && agentKey.startsWith('nxa_')) {
+    const verified = verifyAgentToken(agentKey);
+    if (verified) {
+      socket.agentToken = verified;
+      touchAgentToken(verified.id);
+      return next();
+    }
+    return next(new Error('Invalid or revoked agent token'));
+  }
+
+  // Legacy shared AGENT_SECRET (backwards compat for agents that haven't
+  // been re-issued a per-agent token yet). Constant-time compare.
+  const a = Buffer.from(String(agentKey));
+  const b = Buffer.from(String(AGENT_SECRET));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return next(new Error('Invalid agent key'));
+  }
+  socket.agentToken = { id: 'legacy', label: 'shared AGENT_SECRET' };
   next();
 }
 
@@ -514,6 +640,13 @@ module.exports = {
   socketAuthMiddleware,
   agentAuthMiddleware,
   logSecurityWarnings,
+  // Per-agent tokens
+  issueAgentToken,
+  verifyAgentToken,
+  revokeAgentToken,
+  listAgentTokens,
+  // Password policy (for tests)
+  validatePassword,
   // For tests / introspection only — never expose over the network.
   _internals: { JWT_SECRET, AGENT_SECRET },
 };

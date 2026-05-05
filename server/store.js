@@ -163,6 +163,24 @@ const SQL = {
   selectAllPushSubs: db.prepare('SELECT * FROM push_subscriptions'),
   countPushSubsByUser: db.prepare('SELECT COUNT(*) AS c FROM push_subscriptions WHERE user_id = ?'),
   touchPushSub: db.prepare('UPDATE push_subscriptions SET last_used = ? WHERE endpoint = ?'),
+
+  // login security
+  insertLoginFailure: db.prepare('INSERT INTO login_failures(scope, key, ts) VALUES (?, ?, ?)'),
+  countLoginFailures: db.prepare(
+    'SELECT COUNT(*) AS c FROM login_failures WHERE scope = ? AND key = ? AND ts >= ?'
+  ),
+  pruneLoginFailures: db.prepare(
+    'DELETE FROM login_failures WHERE scope = ? AND key = ? AND ts < ?'
+  ),
+  deleteLoginFailures: db.prepare('DELETE FROM login_failures WHERE scope = ? AND key = ?'),
+  upsertLockout: db.prepare(
+    `INSERT INTO login_lockouts(scope, key, locked_until) VALUES (?, ?, ?)
+     ON CONFLICT(scope, key) DO UPDATE SET locked_until = excluded.locked_until`
+  ),
+  selectLockout: db.prepare(
+    'SELECT locked_until AS lockedUntil FROM login_lockouts WHERE scope = ? AND key = ?'
+  ),
+  deleteLockout: db.prepare('DELETE FROM login_lockouts WHERE scope = ? AND key = ?'),
 };
 
 // ── Row → object helpers ────────────────────────────────
@@ -1045,6 +1063,104 @@ class Store {
 
   touchPushSubscription(endpoint) {
     SQL.touchPushSub.run(new Date().toISOString(), endpoint);
+  }
+
+  // ── Login security ────────────────────────────────────
+  // Two-dimensional lockout (per-IP and per-username) so an attacker
+  // can't flood one user account from a botnet (per-user fires) and a
+  // single bad actor can't sweep many usernames from one IP (per-IP
+  // fires). State is persisted across restarts in SQLite.
+
+  /**
+   * Record a failed login attempt for the given (ip, username) pair.
+   * Returns the post-record state so callers can decide whether to
+   * surface "you've been locked out" in events.
+   */
+  recordLoginFailure(ip, username) {
+    const now = Date.now();
+    const ipKey = String(ip || 'unknown');
+
+    // per-IP: 5 fails in 15 min → 15 min lock
+    const ipWindow = 15 * 60 * 1000;
+    const ipMax = 5;
+    const ipLockMs = 15 * 60 * 1000;
+
+    // per-username: 10 fails in 30 min → 30 min lock
+    const userWindow = 30 * 60 * 1000;
+    const userMax = 10;
+    const userLockMs = 30 * 60 * 1000;
+
+    SQL.insertLoginFailure.run('ip', ipKey, now);
+    SQL.pruneLoginFailures.run('ip', ipKey, now - ipWindow);
+    const ipAttempts = SQL.countLoginFailures.get('ip', ipKey, now - ipWindow).c;
+
+    let ipLockedUntil = null;
+    const existingIpLock = SQL.selectLockout.get('ip', ipKey);
+    if (existingIpLock && existingIpLock.lockedUntil > now) {
+      ipLockedUntil = existingIpLock.lockedUntil;
+    }
+    if (ipAttempts >= ipMax) {
+      ipLockedUntil = now + ipLockMs;
+      SQL.upsertLockout.run('ip', ipKey, ipLockedUntil);
+    }
+
+    let userLockedUntil = null;
+    let userAttempts = 0;
+    if (username && typeof username === 'string') {
+      const userKey = username.toLowerCase().trim();
+      SQL.insertLoginFailure.run('user', userKey, now);
+      SQL.pruneLoginFailures.run('user', userKey, now - userWindow);
+      userAttempts = SQL.countLoginFailures.get('user', userKey, now - userWindow).c;
+
+      const existingUserLock = SQL.selectLockout.get('user', userKey);
+      if (existingUserLock && existingUserLock.lockedUntil > now) {
+        userLockedUntil = existingUserLock.lockedUntil;
+      }
+      if (userAttempts >= userMax) {
+        userLockedUntil = now + userLockMs;
+        SQL.upsertLockout.run('user', userKey, userLockedUntil);
+      }
+    }
+
+    return { ipAttempts, userAttempts, ipLockedUntil, userLockedUntil };
+  }
+
+  /**
+   * Clear failure counters after a successful login. Existing lockouts
+   * stay intact — a successful login during a "locked" window is still
+   * possible if the auth itself succeeds, but we want repeated quick
+   * logins-then-failures not to bypass the lockout window.
+   */
+  clearLoginFailures(ip, username) {
+    if (ip) SQL.deleteLoginFailures.run('ip', String(ip));
+    if (username) SQL.deleteLoginFailures.run('user', String(username).toLowerCase().trim());
+  }
+
+  /** Returns the current lockout state for the given (ip, username) pair. */
+  getLoginLockout(ip, username) {
+    const now = Date.now();
+    const ipKey = String(ip || 'unknown');
+    let ipLockedUntil = null;
+    const ipLock = SQL.selectLockout.get('ip', ipKey);
+    if (ipLock && ipLock.lockedUntil > now) ipLockedUntil = ipLock.lockedUntil;
+
+    let userLockedUntil = null;
+    if (username && typeof username === 'string') {
+      const userKey = username.toLowerCase().trim();
+      const userLock = SQL.selectLockout.get('user', userKey);
+      if (userLock && userLock.lockedUntil > now) userLockedUntil = userLock.lockedUntil;
+    }
+    return { ipLockedUntil, userLockedUntil };
+  }
+
+  /** Manually clear lockout for a username (admin override). */
+  clearLockout(username) {
+    if (!username) return false;
+    const userKey = String(username).toLowerCase().trim();
+    if (!userKey) return false;
+    SQL.deleteLockout.run('user', userKey);
+    SQL.deleteLoginFailures.run('user', userKey);
+    return true;
   }
 }
 

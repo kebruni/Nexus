@@ -23,6 +23,11 @@ const orchestrationFactory = require('./lib/orchestration');
 
 // ── App + HTTP + Socket.IO ───────────────────────────────
 const app = express();
+// Trust the local reverse proxy (e.g. nginx in front of Nexus) so that
+// req.ip returns the real client IP from X-Forwarded-For instead of
+// 127.0.0.1. Login lockout is keyed by IP — without this every login
+// from behind the proxy looks like the same source.
+app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
