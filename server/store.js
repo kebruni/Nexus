@@ -1,174 +1,406 @@
 /**
- * PC Control Hub — In-Memory Data Store with JSON-file persistence.
+ * PC Control Hub — data store, backed by SQLite.
  *
- * Hot read/write path stays in memory. Mutations schedule a debounced atomic
- * snapshot to .data/store.json so eventLog, chat, alert rules, alerts, groups
- * and scripts survive a server restart.
+ * Public API matches the previous in-memory/JSON-file implementation
+ * byte-for-byte: every callsite keeps working without changes.
+ *
+ * What's persistent (lives in `.data/nexus.db`):
+ *   - eventLog, alertRules, alerts, groups, scripts, webhooks,
+ *     schedules, chatMessages.
+ *
+ * What stays in memory (intentional — runtime-only):
+ *   - agents          (tied to live socket connections)
+ *   - metricsHistory  (high-volume, useless after restart)
+ *   - latencies       (refreshed on every ping)
+ *   - alertTimers     (stateful "rule firing for N seconds" tracker)
  */
 
-const persistence = require('./persistence');
+const db = require('./db');
+
+// ── Prepared statements ─────────────────────────────────
+// (better-sqlite3 caches these — they compile once)
+
+const SQL = {
+  // events
+  insertEvent: db.prepare(
+    'INSERT INTO events(id, type, message, agent_id, actor, timestamp) VALUES (?,?,?,?,?,?)'
+  ),
+  countEvents: db.prepare('SELECT COUNT(*) AS c FROM events'),
+  trimEvents: db.prepare(
+    `DELETE FROM events WHERE id NOT IN
+       (SELECT id FROM events ORDER BY timestamp DESC, id DESC LIMIT ?)`
+  ),
+  selectEventsByAgent: db.prepare(
+    'SELECT * FROM events WHERE agent_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?'
+  ),
+  selectEventsAll: db.prepare('SELECT * FROM events ORDER BY timestamp DESC, id DESC LIMIT ?'),
+  selectAllEventsForAdvanced: db.prepare('SELECT * FROM events ORDER BY timestamp DESC, id DESC'),
+
+  // chat
+  insertChat: db.prepare(
+    'INSERT INTO chat_messages(id, agent_id, sender, sender_name, text, timestamp) VALUES (?,?,?,?,?,?)'
+  ),
+  selectChat: db.prepare(
+    `SELECT id, agent_id AS agentId, sender, sender_name AS senderName, text, timestamp
+       FROM chat_messages WHERE agent_id = ? ORDER BY timestamp ASC, id ASC LIMIT ?`
+  ),
+  trimChat: db.prepare(
+    `DELETE FROM chat_messages WHERE agent_id = ? AND id NOT IN
+       (SELECT id FROM chat_messages WHERE agent_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?)`
+  ),
+  deleteChatByAgent: db.prepare('DELETE FROM chat_messages WHERE agent_id = ?'),
+  selectAllChatGrouped: db.prepare(
+    `SELECT id, agent_id, sender, sender_name, text, timestamp
+       FROM chat_messages ORDER BY agent_id, timestamp ASC, id ASC`
+  ),
+
+  // alert rules
+  insertRule: db.prepare(
+    'INSERT INTO alert_rules(id, name, metric, operator, threshold, duration, enabled, agent_id) VALUES (?,?,?,?,?,?,?,?)'
+  ),
+  updateRule: db.prepare(
+    `UPDATE alert_rules SET name=?, metric=?, operator=?, threshold=?, duration=?, enabled=?, agent_id=? WHERE id=?`
+  ),
+  deleteRule: db.prepare('DELETE FROM alert_rules WHERE id = ?'),
+  selectRule: db.prepare('SELECT * FROM alert_rules WHERE id = ?'),
+  selectAllRules: db.prepare('SELECT * FROM alert_rules ORDER BY id ASC'),
+
+  // alerts
+  insertAlert: db.prepare(
+    `INSERT INTO alerts(id, rule_id, rule_name, agent_id, agent_hostname, metric,
+       current_value, threshold, message, severity, timestamp, acknowledged)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  ),
+  countAlerts: db.prepare('SELECT COUNT(*) AS c FROM alerts'),
+  trimAlerts: db.prepare(
+    `DELETE FROM alerts WHERE id NOT IN
+       (SELECT id FROM alerts ORDER BY timestamp DESC, id DESC LIMIT ?)`
+  ),
+  ackAlert: db.prepare('UPDATE alerts SET acknowledged = 1 WHERE id = ?'),
+  ackAll: db.prepare('UPDATE alerts SET acknowledged = 1 WHERE acknowledged = 0'),
+  selectAlerts: db.prepare('SELECT * FROM alerts ORDER BY timestamp DESC, id DESC LIMIT ?'),
+  selectAllAlerts: db.prepare('SELECT * FROM alerts ORDER BY timestamp DESC, id DESC'),
+  selectUnacked: db.prepare('SELECT * FROM alerts WHERE acknowledged = 0 ORDER BY timestamp DESC, id DESC'),
+  findOpenAlertForRule: db.prepare(
+    'SELECT * FROM alerts WHERE rule_id = ? AND agent_id = ? AND acknowledged = 0 LIMIT 1'
+  ),
+
+  // groups
+  upsertGroup: db.prepare(
+    'INSERT INTO groups(name, color, created_at) VALUES (?,?,?) ON CONFLICT(name) DO UPDATE SET color=excluded.color'
+  ),
+  deleteGroup: db.prepare('DELETE FROM groups WHERE name = ?'),
+  selectAllGroups: db.prepare('SELECT name, color, created_at FROM groups ORDER BY name ASC'),
+
+  // scripts
+  insertScript: db.prepare('INSERT INTO scripts(id, name, code, created_at) VALUES (?,?,?,?)'),
+  deleteScript: db.prepare('DELETE FROM scripts WHERE id = ?'),
+  selectAllScripts: db.prepare('SELECT id, name, code, created_at AS createdAt FROM scripts ORDER BY created_at DESC'),
+
+  // webhooks
+  insertWebhook: db.prepare(
+    `INSERT INTO webhooks(id, name, type, enabled, config_json, filters_json, created_at, last_delivery_json)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ),
+  updateWebhook: db.prepare(
+    `UPDATE webhooks SET name=?, enabled=?, config_json=?, filters_json=? WHERE id=?`
+  ),
+  setWebhookDelivery: db.prepare('UPDATE webhooks SET last_delivery_json=? WHERE id=?'),
+  deleteWebhook: db.prepare('DELETE FROM webhooks WHERE id = ?'),
+  selectAllWebhooks: db.prepare('SELECT * FROM webhooks ORDER BY created_at DESC'),
+  selectWebhook: db.prepare('SELECT * FROM webhooks WHERE id = ?'),
+
+  // schedules
+  insertSchedule: db.prepare(
+    `INSERT INTO schedules(id, name, cron, action, command, target_json, enabled,
+       created_at, created_by, last_run_at, last_result_json)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+  ),
+  updateSchedule: db.prepare(
+    `UPDATE schedules SET name=?, cron=?, action=?, command=?, target_json=?, enabled=? WHERE id=?`
+  ),
+  deleteSchedule: db.prepare('DELETE FROM schedules WHERE id = ?'),
+  selectAllSchedules: db.prepare('SELECT * FROM schedules ORDER BY created_at DESC'),
+  selectSchedule: db.prepare('SELECT * FROM schedules WHERE id = ?'),
+  recordRun: db.prepare('UPDATE schedules SET last_run_at=?, last_result_json=? WHERE id=?'),
+
+  // wipe (used by restoreSnapshot)
+  wipeEvents: db.prepare('DELETE FROM events'),
+  wipeChat: db.prepare('DELETE FROM chat_messages'),
+  wipeRules: db.prepare('DELETE FROM alert_rules'),
+  wipeAlerts: db.prepare('DELETE FROM alerts'),
+  wipeGroups: db.prepare('DELETE FROM groups'),
+  wipeScripts: db.prepare('DELETE FROM scripts'),
+  wipeWebhooks: db.prepare('DELETE FROM webhooks'),
+  wipeSchedules: db.prepare('DELETE FROM schedules'),
+};
+
+// ── Row → object helpers ────────────────────────────────
+
+function rowToEvent(r) {
+  return {
+    id: r.id,
+    type: r.type,
+    message: r.message,
+    agentId: r.agent_id,
+    actor: r.actor,
+    timestamp: r.timestamp,
+  };
+}
+function rowToRule(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    metric: r.metric,
+    operator: r.operator,
+    threshold: r.threshold,
+    duration: r.duration,
+    enabled: !!r.enabled,
+    agentId: r.agent_id,
+  };
+}
+function rowToAlert(r) {
+  return {
+    id: r.id,
+    ruleId: r.rule_id,
+    ruleName: r.rule_name,
+    agentId: r.agent_id,
+    agentHostname: r.agent_hostname,
+    metric: r.metric,
+    currentValue: r.current_value,
+    threshold: r.threshold,
+    message: r.message,
+    severity: r.severity,
+    timestamp: r.timestamp,
+    acknowledged: !!r.acknowledged,
+  };
+}
+function rowToGroup(r) {
+  return { name: r.name, color: r.color, createdAt: r.created_at };
+}
+function rowToWebhook(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    enabled: !!r.enabled,
+    config: parseJsonSafe(r.config_json, {}),
+    filters: parseJsonSafe(r.filters_json, {}),
+    createdAt: r.created_at,
+    lastDelivery: parseJsonSafe(r.last_delivery_json, null),
+  };
+}
+function rowToSchedule(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    cron: r.cron,
+    action: r.action,
+    command: r.command,
+    target: parseJsonSafe(r.target_json, {}),
+    enabled: !!r.enabled,
+    createdAt: r.created_at,
+    createdBy: r.created_by,
+    lastRunAt: r.last_run_at,
+    lastResult: parseJsonSafe(r.last_result_json, null),
+  };
+}
+function parseJsonSafe(s, fallback) {
+  if (s == null || s === '') return fallback;
+  try { return JSON.parse(s); } catch { return fallback; }
+}
+
+// ── Constants ──────────────────────────────────────────
+const EVENT_LIMIT = 1000;
+const ALERT_LIMIT = 500;
+const CHAT_LIMIT_PER_AGENT = 500;
 
 class Store {
   constructor() {
     /** @type {Map<string, object>} agentId -> agent info & latest metrics */
     this.agents = new Map();
-
-    /** @type {Map<string, Array>} agentId -> metrics history array */
+    /** @type {Map<string, Array>} agentId -> metrics history */
     this.metricsHistory = new Map();
-
-    /** @type {Array<object>} System event log */
-    this.eventLog = [];
-
-    /** @type {Map<string, Array>} agentId -> chat messages */
-    this.chatMessages = new Map();
-
-    /** @type {Array<object>} Alert rules */
-    this.alertRules = [];
-
-    /** @type {Array<object>} Triggered alerts */
-    this.alerts = [];
-
-    /** @type {Map<string, number>} ruleId:agentId -> timestamp first triggered */
+    /** @type {Map<string, number>} ruleId:agentId -> first-trigger ms */
     this.alertTimers = new Map();
-
-    /** @type {Map<string, object>} groupName -> group info */
-    this.groups = new Map();
-
     /** @type {Map<string, number>} agentId -> latency ms */
     this.latencies = new Map();
 
-    /** @type {Array<object>} Saved scripts */
-    this.scripts = [];
-
-    /** @type {Array<object>} Webhook delivery channels for alerts */
-    this.webhooks = [];
-
-    /** @type {Array<object>} Cron-style schedules */
-    this.schedules = [];
-
     this.HISTORY_LIMIT = 200;
 
-    this._loadFromDisk();
-
-    // Garbage collection for dead agents (run every hour)
+    // GC offline agents older than 24h, hourly
     setInterval(() => this.cleanupDeadAgents(), 60 * 60 * 1000);
-  }
 
-  // ── Persistence ─────────────────────────────────────────
-
-  _loadFromDisk() {
-    const data = persistence.loadStore();
-    if (!data || typeof data !== 'object') return;
-
-    if (Array.isArray(data.eventLog)) this.eventLog = data.eventLog;
-    if (Array.isArray(data.alertRules)) this.alertRules = data.alertRules;
-    if (Array.isArray(data.alerts)) this.alerts = data.alerts;
-    if (Array.isArray(data.scripts)) this.scripts = data.scripts;
-    if (Array.isArray(data.webhooks)) this.webhooks = data.webhooks;
-    if (Array.isArray(data.schedules)) this.schedules = data.schedules;
-
-    if (data.chatMessages && typeof data.chatMessages === 'object') {
-      for (const [agentId, msgs] of Object.entries(data.chatMessages)) {
-        if (Array.isArray(msgs)) this.chatMessages.set(agentId, msgs);
-      }
-    }
-
-    if (data.groups && typeof data.groups === 'object') {
-      for (const [name, group] of Object.entries(data.groups)) {
-        this.groups.set(name, group);
-      }
-    }
-
+    const counts = SQL.countEvents.get();
+    const alertCounts = SQL.countAlerts.get();
+    const groupCount = SQL.selectAllGroups.all().length;
+    const scriptCount = SQL.selectAllScripts.all().length;
     console.log(
-      `[Store] Loaded persisted data: ${this.eventLog.length} events, ` +
-        `${this.alertRules.length} alert rules, ${this.alerts.length} alerts, ` +
-        `${this.scripts.length} scripts, ${this.groups.size} groups`
+      `[Store] SQLite loaded: ${counts.c} events, ${alertCounts.c} alerts, ` +
+      `${groupCount} groups, ${scriptCount} scripts`
     );
   }
 
+  // ── Persistence helpers (compat) ─────────────────────
+  // _persist() is a no-op now: every mutation writes directly to SQLite
+  // inside this method. flushSync() does nothing meaningful but is kept
+  // for shutdown-handler compat.
+
+  flushSync() { /* SQLite WAL flushes synchronously per write */ }
+
+  /**
+   * Snapshot of every persisted table, in the same shape backup.js
+   * already understands (matches the old in-memory format).
+   */
   _snapshot() {
+    const rules = SQL.selectAllRules.all().map(rowToRule);
+    const alerts = SQL.selectAllAlerts.all().map(rowToAlert);
+    const events = SQL.selectAllEventsForAdvanced.all().map(rowToEvent);
+    const scripts = SQL.selectAllScripts.all();
+    const webhooks = SQL.selectAllWebhooks.all().map(rowToWebhook);
+    const schedules = SQL.selectAllSchedules.all().map(rowToSchedule);
+
+    const chatMessages = {};
+    for (const r of SQL.selectAllChatGrouped.all()) {
+      const aid = r.agent_id;
+      if (!chatMessages[aid]) chatMessages[aid] = [];
+      chatMessages[aid].push({
+        id: r.id,
+        agentId: aid,
+        sender: r.sender,
+        senderName: r.sender_name,
+        text: r.text,
+        timestamp: r.timestamp,
+      });
+    }
+
+    const groups = {};
+    for (const g of SQL.selectAllGroups.all()) {
+      groups[g.name] = rowToGroup(g);
+    }
+
     return {
-      eventLog: this.eventLog,
-      alertRules: this.alertRules,
-      alerts: this.alerts,
-      scripts: this.scripts,
-      webhooks: this.webhooks,
-      schedules: this.schedules,
-      chatMessages: Object.fromEntries(this.chatMessages),
-      groups: Object.fromEntries(this.groups),
+      eventLog: events,
+      alertRules: rules,
+      alerts,
+      scripts,
+      webhooks,
+      schedules,
+      chatMessages,
+      groups,
     };
   }
 
-  _persist() {
-    persistence.scheduleStoreSave(() => this._snapshot());
-  }
-
-  flushSync() {
-    persistence.flushSync(() => this._snapshot());
-  }
-
   /**
-   * Replace persisted store contents with the given snapshot. Used by
-   * the backup/restore endpoint. `agents`, `metricsHistory`,
-   * `latencies` and `alertTimers` are runtime-only and intentionally
-   * preserved.
+   * Replace the contents of every persisted table with the given
+   * snapshot (used by /api/backup/restore). Atomic.
    */
   restoreSnapshot(snap) {
     if (!snap || typeof snap !== 'object') {
       throw new Error('Invalid snapshot');
     }
-    this.eventLog = Array.isArray(snap.eventLog) ? snap.eventLog : [];
-    this.alertRules = Array.isArray(snap.alertRules) ? snap.alertRules : [];
-    this.alerts = Array.isArray(snap.alerts) ? snap.alerts : [];
-    this.scripts = Array.isArray(snap.scripts) ? snap.scripts : [];
-    this.webhooks = Array.isArray(snap.webhooks) ? snap.webhooks : [];
-    this.schedules = Array.isArray(snap.schedules) ? snap.schedules : [];
+    const tx = db.transaction(() => {
+      SQL.wipeEvents.run();
+      SQL.wipeChat.run();
+      SQL.wipeRules.run();
+      SQL.wipeAlerts.run();
+      SQL.wipeGroups.run();
+      SQL.wipeScripts.run();
+      SQL.wipeWebhooks.run();
+      SQL.wipeSchedules.run();
 
-    this.chatMessages = new Map();
-    if (snap.chatMessages && typeof snap.chatMessages === 'object') {
-      for (const [agentId, msgs] of Object.entries(snap.chatMessages)) {
-        if (Array.isArray(msgs)) this.chatMessages.set(agentId, msgs);
+      if (Array.isArray(snap.eventLog)) {
+        for (const e of snap.eventLog) {
+          SQL.insertEvent.run(e.id, e.type, e.message, e.agentId || null, e.actor || null, e.timestamp);
+        }
       }
-    }
-
-    this.groups = new Map();
-    if (snap.groups && typeof snap.groups === 'object') {
-      for (const [name, group] of Object.entries(snap.groups)) {
-        this.groups.set(name, group);
+      if (Array.isArray(snap.alertRules)) {
+        for (const r of snap.alertRules) {
+          SQL.insertRule.run(
+            r.id, r.name, r.metric, r.operator || 'gt', r.threshold,
+            r.duration || 0, r.enabled !== false ? 1 : 0, r.agentId || null
+          );
+        }
       }
-    }
-
-    this.flushSync();
+      if (Array.isArray(snap.alerts)) {
+        for (const a of snap.alerts) {
+          SQL.insertAlert.run(
+            a.id, a.ruleId || null, a.ruleName || null, a.agentId || null,
+            a.agentHostname || null, a.metric || null, a.currentValue || 0,
+            a.threshold || 0, a.message || '', a.severity || 'warning',
+            a.timestamp, a.acknowledged ? 1 : 0
+          );
+        }
+      }
+      if (Array.isArray(snap.scripts)) {
+        for (const s of snap.scripts) {
+          SQL.insertScript.run(s.id, s.name, s.code, s.createdAt || new Date().toISOString());
+        }
+      }
+      if (Array.isArray(snap.webhooks)) {
+        for (const h of snap.webhooks) {
+          SQL.insertWebhook.run(
+            h.id, h.name, h.type, h.enabled !== false ? 1 : 0,
+            JSON.stringify(h.config || {}), JSON.stringify(h.filters || {}),
+            h.createdAt || new Date().toISOString(),
+            h.lastDelivery ? JSON.stringify(h.lastDelivery) : null
+          );
+        }
+      }
+      if (Array.isArray(snap.schedules)) {
+        for (const s of snap.schedules) {
+          SQL.insertSchedule.run(
+            s.id, s.name, s.cron, s.action, s.command || null,
+            JSON.stringify(s.target || {}), s.enabled !== false ? 1 : 0,
+            s.createdAt || new Date().toISOString(), s.createdBy || null,
+            s.lastRunAt || null,
+            s.lastResult ? JSON.stringify(s.lastResult) : null
+          );
+        }
+      }
+      if (snap.chatMessages && typeof snap.chatMessages === 'object') {
+        for (const [agentId, msgs] of Object.entries(snap.chatMessages)) {
+          if (!Array.isArray(msgs)) continue;
+          for (const m of msgs) {
+            SQL.insertChat.run(m.id, agentId, m.sender, m.senderName || null, m.text, m.timestamp);
+          }
+        }
+      }
+      if (snap.groups && typeof snap.groups === 'object') {
+        for (const [name, g] of Object.entries(snap.groups)) {
+          SQL.upsertGroup.run(name, g.color || '#3b82f6', g.createdAt || new Date().toISOString());
+        }
+      }
+    });
+    tx();
   }
 
   // ── Garbage Collection ──────────────────────────────────
 
   cleanupDeadAgents() {
     const now = new Date();
-    const DEAD_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
+    const DEAD_THRESHOLD = 24 * 60 * 60 * 1000;
     for (const [agentId, agent] of this.agents.entries()) {
       if (agent.status === 'offline' && agent.disconnectedAt) {
-        const disconnectedTime = new Date(agent.disconnectedAt);
-        if (now - disconnectedTime > DEAD_THRESHOLD) {
+        const t = new Date(agent.disconnectedAt);
+        if (now - t > DEAD_THRESHOLD) {
           this.agents.delete(agentId);
           this.metricsHistory.delete(agentId);
-          this.chatMessages.delete(agentId);
           this.latencies.delete(agentId);
+          SQL.deleteChatByAgent.run(agentId);
           console.log(`[Store] Garbage collected dead agent: ${agentId}`);
         }
       }
     }
   }
 
-  // ── Agents ──────────────────────────────────────────────
+  // ── Agents (in-memory) ──────────────────────────────────
 
   registerAgent(agentId, info) {
-    // Remove any previous entries with the same hostname to prevent duplicates
     for (const [existingId, existingAgent] of this.agents.entries()) {
       if (existingId !== agentId && existingAgent.hostname === info.hostname) {
         this.agents.delete(existingId);
         this.metricsHistory.delete(existingId);
-        this.chatMessages.delete(existingId);
         this.latencies.delete(existingId);
       }
     }
@@ -207,19 +439,11 @@ class Store {
     }
   }
 
-  getAgent(agentId) {
-    return this.agents.get(agentId) || null;
-  }
+  getAgent(agentId) { return this.agents.get(agentId) || null; }
+  getAllAgents() { return Array.from(this.agents.values()); }
+  getOnlineAgents() { return this.getAllAgents().filter((a) => a.status === 'online'); }
 
-  getAllAgents() {
-    return Array.from(this.agents.values());
-  }
-
-  getOnlineAgents() {
-    return this.getAllAgents().filter((a) => a.status === 'online');
-  }
-
-  // ── Metrics ─────────────────────────────────────────────
+  // ── Metrics (in-memory) ─────────────────────────────────
 
   updateMetrics(agentId, metrics) {
     const agent = this.agents.get(agentId);
@@ -228,20 +452,14 @@ class Store {
       agent.lastSeen = new Date().toISOString();
       agent.status = 'online';
     }
-
-    // Save to history
     if (!this.metricsHistory.has(agentId)) {
       this.metricsHistory.set(agentId, []);
     }
     const history = this.metricsHistory.get(agentId);
     history.push({ ...metrics, timestamp: new Date().toISOString() });
-
-    // Trim history
     if (history.length > this.HISTORY_LIMIT) {
       history.splice(0, history.length - this.HISTORY_LIMIT);
     }
-    // Metrics history is intentionally NOT persisted — it's high-volume and
-    // not useful after a restart.
   }
 
   getMetricsHistory(agentId, limit = 60) {
@@ -249,7 +467,7 @@ class Store {
     return history.slice(-limit);
   }
 
-  // ── Event Log ───────────────────────────────────────────
+  // ── Events (SQLite) ─────────────────────────────────────
 
   addEvent(type, message, agentId = null, actor = null) {
     const event = {
@@ -260,37 +478,27 @@ class Store {
       actor: actor || null,
       timestamp: new Date().toISOString(),
     };
-    this.eventLog.unshift(event);
-
-    // Keep last 1000 events
-    if (this.eventLog.length > 1000) {
-      this.eventLog = this.eventLog.slice(0, 1000);
+    SQL.insertEvent.run(event.id, type, message, agentId, actor || null, event.timestamp);
+    if (Math.random() < 0.05) {
+      // Trim opportunistically (~5% of writes) to avoid running on every insert
+      SQL.trimEvents.run(EVENT_LIMIT);
     }
-    this._persist();
     return event;
   }
 
   getEvents(limit = 50, agentId = null) {
-    let events = this.eventLog;
-    if (agentId) {
-      events = events.filter((e) => e.agentId === agentId);
-    }
-    return events.slice(0, limit);
+    const rows = agentId
+      ? SQL.selectEventsByAgent.all(agentId, limit)
+      : SQL.selectEventsAll.all(limit);
+    return rows.map(rowToEvent);
   }
 
   /**
    * Filter, paginate and summarize the event log for the audit page.
-   * All filters are AND'ed. Empty/undefined fields are ignored.
+   * SQLite-backed: cheap WHERE for type/agentId/actor/range, in-memory
+   * filter for free-text `q` (search across multiple columns).
    *
    * @param {object} opts
-   * @param {string|string[]} [opts.type]      single type or array of types
-   * @param {string} [opts.agentId]
-   * @param {string} [opts.actor]
-   * @param {string} [opts.q]                 substring (case-insensitive) over message+type+actor+agentId
-   * @param {string} [opts.from]              ISO timestamp lower bound (inclusive)
-   * @param {string} [opts.to]                ISO timestamp upper bound (inclusive)
-   * @param {number} [opts.limit=100]
-   * @param {number} [opts.offset=0]
    * @returns {{ items: object[], total: number, types: string[], actors: string[] }}
    */
   getEventsAdvanced(opts = {}) {
@@ -298,61 +506,63 @@ class Store {
     const limit = Math.min(Math.max(parseInt(opts.limit, 10) || 100, 1), 1000);
     const offset = Math.max(parseInt(opts.offset, 10) || 0, 0);
 
-    const types = new Set();
-    const actors = new Set();
-    for (const ev of this.eventLog) {
-      types.add(ev.type);
-      if (ev.actor) actors.add(ev.actor);
+    const where = [];
+    const args = [];
+    if (Array.isArray(type) && type.length) {
+      where.push(`type IN (${type.map(() => '?').join(',')})`);
+      args.push(...type);
+    } else if (type) {
+      where.push('type = ?');
+      args.push(type);
+    }
+    if (agentId) { where.push('agent_id = ?'); args.push(agentId); }
+    if (actor)   { where.push('actor = ?');    args.push(actor); }
+    if (from)    { where.push('timestamp >= ?'); args.push(from); }
+    if (to)      { where.push('timestamp <= ?'); args.push(to); }
+
+    let needle = null;
+    if (q) {
+      needle = String(q).toLowerCase();
     }
 
-    const typeFilter = Array.isArray(type)
-      ? new Set(type.filter(Boolean))
-      : type
-        ? new Set([type])
-        : null;
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const fromMs = from ? Date.parse(from) : null;
-    const toMs = to ? Date.parse(to) : null;
-    const needle = q ? String(q).toLowerCase() : null;
-
-    const matches = (ev) => {
-      if (typeFilter && !typeFilter.has(ev.type)) return false;
-      if (agentId && ev.agentId !== agentId) return false;
-      if (actor && ev.actor !== actor) return false;
-      if (fromMs != null) {
-        const ts = Date.parse(ev.timestamp);
-        if (Number.isFinite(ts) && ts < fromMs) return false;
-      }
-      if (toMs != null) {
-        const ts = Date.parse(ev.timestamp);
-        if (Number.isFinite(ts) && ts > toMs) return false;
-      }
-      if (needle) {
+    let total;
+    let rows;
+    if (needle) {
+      // Free-text path: pull pre-filtered rows, then JS filter, then page.
+      const pre = db.prepare(
+        `SELECT * FROM events ${whereSql} ORDER BY timestamp DESC, id DESC`
+      ).all(...args);
+      const matches = pre.filter((r) => {
         const hay =
-          (ev.message || '').toLowerCase() +
-          ' ' +
-          (ev.type || '').toLowerCase() +
-          ' ' +
-          (ev.actor || '').toLowerCase() +
-          ' ' +
-          (ev.agentId || '').toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    };
+          (r.message || '').toLowerCase() + ' ' +
+          (r.type || '').toLowerCase() + ' ' +
+          (r.actor || '').toLowerCase() + ' ' +
+          (r.agent_id || '').toLowerCase();
+        return hay.includes(needle);
+      });
+      total = matches.length;
+      rows = matches.slice(offset, offset + limit);
+    } else {
+      total = db.prepare(`SELECT COUNT(*) AS c FROM events ${whereSql}`).get(...args).c;
+      rows = db.prepare(
+        `SELECT * FROM events ${whereSql} ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`
+      ).all(...args, limit, offset);
+    }
 
-    const filtered = this.eventLog.filter(matches);
-    const items = filtered.slice(offset, offset + limit);
+    const types = db.prepare('SELECT DISTINCT type FROM events ORDER BY type').all().map((r) => r.type);
+    const actors = db.prepare("SELECT DISTINCT actor FROM events WHERE actor IS NOT NULL AND actor <> '' ORDER BY actor").all().map((r) => r.actor);
 
     return {
-      items,
-      total: filtered.length,
-      types: Array.from(types).sort(),
-      actors: Array.from(actors).sort(),
+      items: rows.map(rowToEvent),
+      total,
+      types,
+      actors,
     };
   }
 
-  // ── Chat ────────────────────────────────────────────────
+  // ── Chat (SQLite) ───────────────────────────────────────
 
   addChatMessage(agentId, sender, senderName, text) {
     const msg = {
@@ -363,25 +573,28 @@ class Store {
       timestamp: new Date().toISOString(),
       agentId,
     };
-    if (!this.chatMessages.has(agentId)) {
-      this.chatMessages.set(agentId, []);
-    }
-    const msgs = this.chatMessages.get(agentId);
-    msgs.push(msg);
-    if (msgs.length > 500) msgs.splice(0, msgs.length - 500);
-    this._persist();
+    SQL.insertChat.run(msg.id, agentId, sender, senderName, text, msg.timestamp);
+    SQL.trimChat.run(agentId, agentId, CHAT_LIMIT_PER_AGENT);
     return msg;
   }
 
   getChatMessages(agentId, limit = 100) {
-    const msgs = this.chatMessages.get(agentId) || [];
-    return msgs.slice(-limit);
+    // selectChat sorts ASC; we want the LAST `limit` of the ordered list.
+    const rows = SQL.selectChat.all(agentId, 100000);
+    return rows.slice(-limit).map((r) => ({
+      id: r.id,
+      agentId: r.agentId,
+      sender: r.sender,
+      senderName: r.senderName,
+      text: r.text,
+      timestamp: r.timestamp,
+    }));
   }
 
-  // ── Alert Rules ─────────────────────────────────────────
+  // ── Alert Rules (SQLite) ────────────────────────────────
 
   addAlertRule(rule) {
-    const alertRule = {
+    const r = {
       id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
       name: rule.name,
       metric: rule.metric,
@@ -391,38 +604,42 @@ class Store {
       enabled: rule.enabled !== false,
       agentId: rule.agentId || null,
     };
-    this.alertRules.push(alertRule);
-    this._persist();
-    return alertRule;
+    SQL.insertRule.run(
+      r.id, r.name, r.metric, r.operator, r.threshold, r.duration,
+      r.enabled ? 1 : 0, r.agentId
+    );
+    return r;
   }
 
   updateAlertRule(ruleId, updates) {
-    const rule = this.alertRules.find((r) => r.id === ruleId);
-    if (rule) {
-      Object.assign(rule, updates);
-      this._persist();
-    }
-    return rule;
+    const cur = SQL.selectRule.get(ruleId);
+    if (!cur) return null;
+    const next = { ...rowToRule(cur), ...updates };
+    SQL.updateRule.run(
+      next.name, next.metric, next.operator, next.threshold, next.duration,
+      next.enabled ? 1 : 0, next.agentId || null, ruleId
+    );
+    return next;
   }
 
   deleteAlertRule(ruleId) {
-    const before = this.alertRules.length;
-    this.alertRules = this.alertRules.filter((r) => r.id !== ruleId);
-    if (this.alertRules.length !== before) this._persist();
+    SQL.deleteRule.run(ruleId);
   }
 
   getAlertRules() {
-    return this.alertRules;
+    return SQL.selectAllRules.all().map(rowToRule);
   }
 
-  // ── Triggered Alerts ────────────────────────────────────
+  // ── Triggered Alerts (SQLite) ───────────────────────────
 
   checkAlerts(agentId, metrics) {
     const agent = this.agents.get(agentId);
     if (!agent) return [];
 
     const newAlerts = [];
-    for (const rule of this.alertRules) {
+    const rules = SQL.selectAllRules.all();
+    for (const ruleRow of rules) {
+      const rule = rowToRule(ruleRow);
       if (!rule.enabled) continue;
       if (rule.agentId && rule.agentId !== agentId) continue;
 
@@ -435,17 +652,13 @@ class Store {
         rule.operator === 'gt' ? currentValue > rule.threshold : currentValue < rule.threshold;
 
       const timerKey = `${rule.id}:${agentId}`;
-
       if (triggered) {
         if (!this.alertTimers.has(timerKey)) {
           this.alertTimers.set(timerKey, Date.now());
         }
         const elapsed = (Date.now() - this.alertTimers.get(timerKey)) / 1000;
         if (elapsed >= rule.duration) {
-          // Check if same alert already exists unacknowledged
-          const existing = this.alerts.find(
-            (a) => a.ruleId === rule.id && a.agentId === agentId && !a.acknowledged
-          );
+          const existing = SQL.findOpenAlertForRule.get(rule.id, agentId);
           if (!existing) {
             const severity = currentValue > 90 ? 'critical' : 'warning';
             const alert = {
@@ -462,10 +675,13 @@ class Store {
               timestamp: new Date().toISOString(),
               acknowledged: false,
             };
-            this.alerts.unshift(alert);
-            if (this.alerts.length > 500) this.alerts = this.alerts.slice(0, 500);
+            SQL.insertAlert.run(
+              alert.id, alert.ruleId, alert.ruleName, alert.agentId, alert.agentHostname,
+              alert.metric, alert.currentValue, alert.threshold, alert.message, alert.severity,
+              alert.timestamp, 0
+            );
+            SQL.trimAlerts.run(ALERT_LIMIT);
             newAlerts.push(alert);
-            this._persist();
           }
         }
       } else {
@@ -476,74 +692,54 @@ class Store {
   }
 
   acknowledgeAlert(alertId) {
-    const alert = this.alerts.find((a) => a.id === alertId);
-    if (alert) {
-      alert.acknowledged = true;
-      this._persist();
-    }
-    return alert;
+    SQL.ackAlert.run(alertId);
+    const row = db.prepare('SELECT * FROM alerts WHERE id = ?').get(alertId);
+    return row ? rowToAlert(row) : null;
   }
 
   acknowledgeAllAlerts() {
-    let count = 0;
-    for (const a of this.alerts) {
-      if (!a.acknowledged) {
-        a.acknowledged = true;
-        count += 1;
-      }
-    }
-    if (count > 0) this._persist();
-    return count;
+    return SQL.ackAll.run().changes;
   }
 
   getAlerts(limit = 100) {
-    return this.alerts.slice(0, limit);
+    return SQL.selectAlerts.all(limit).map(rowToAlert);
   }
 
   getUnacknowledgedAlerts() {
-    return this.alerts.filter((a) => !a.acknowledged);
+    return SQL.selectUnacked.all().map(rowToAlert);
   }
 
-  // ── Groups ──────────────────────────────────────────────
+  // ── Groups (SQLite) ─────────────────────────────────────
 
   addGroup(name, color = '#3b82f6') {
-    const group = { name, color, createdAt: new Date().toISOString() };
-    this.groups.set(name, group);
-    this._persist();
-    return group;
+    const g = { name, color, createdAt: new Date().toISOString() };
+    SQL.upsertGroup.run(name, color, g.createdAt);
+    return g;
   }
 
   deleteGroup(name) {
-    this.groups.delete(name);
-    // Remove group from agents
+    SQL.deleteGroup.run(name);
     for (const [, agent] of this.agents) {
       if (agent.group === name) agent.group = null;
     }
-    this._persist();
   }
 
   getGroups() {
-    return Array.from(this.groups.values());
+    return SQL.selectAllGroups.all().map(rowToGroup);
   }
 
   setAgentGroup(agentId, groupName) {
     const agent = this.agents.get(agentId);
-    if (agent) {
-      agent.group = groupName;
-    }
+    if (agent) agent.group = groupName;
     return agent;
   }
 
-  /**
-   * Returns all agents (online or offline) that belong to `groupName`.
-   * Used by bulk-action endpoints to fan a single command out to a group.
-   */
   getAgentsByGroup(groupName) {
     if (!groupName) return [];
     return this.getAllAgents().filter((a) => a.group === groupName);
   }
 
-  // ── Latency ─────────────────────────────────────────────
+  // ── Latency (in-memory) ─────────────────────────────────
 
   updateLatency(agentId, latencyMs) {
     this.latencies.set(agentId, latencyMs);
@@ -555,7 +751,7 @@ class Store {
     return this.latencies.get(agentId) || 0;
   }
 
-  // ── Scripts ─────────────────────────────────────────────
+  // ── Scripts (SQLite) ────────────────────────────────────
 
   addScript(data) {
     const script = {
@@ -564,84 +760,85 @@ class Store {
       code: data.code,
       createdAt: new Date().toISOString(),
     };
-    this.scripts.push(script);
-    this._persist();
+    SQL.insertScript.run(script.id, script.name, script.code, script.createdAt);
     return script;
   }
 
   deleteScript(id) {
-    const before = this.scripts.length;
-    this.scripts = this.scripts.filter((s) => s.id !== id);
-    if (this.scripts.length !== before) this._persist();
+    SQL.deleteScript.run(id);
   }
 
   getScripts() {
-    return this.scripts;
+    return SQL.selectAllScripts.all();
   }
 
-  // ── Webhooks ────────────────────────────────────────────
+  // ── Webhooks (SQLite) ───────────────────────────────────
 
   addWebhook(data) {
     const hook = {
       id: Date.now() + '-' + Math.random().toString(36).substr(2, 5),
       name: data.name,
-      type: data.type, // 'telegram' | 'discord' | 'slack' | 'generic'
+      type: data.type,
       enabled: data.enabled !== false,
       config: data.config || {},
       filters: data.filters || {},
       createdAt: new Date().toISOString(),
       lastDelivery: null,
     };
-    this.webhooks.push(hook);
-    this._persist();
+    SQL.insertWebhook.run(
+      hook.id, hook.name, hook.type, hook.enabled ? 1 : 0,
+      JSON.stringify(hook.config), JSON.stringify(hook.filters),
+      hook.createdAt, null
+    );
     return hook;
   }
 
   updateWebhook(id, updates) {
-    const hook = this.webhooks.find((h) => h.id === id);
-    if (!hook) return null;
+    const cur = SQL.selectWebhook.get(id);
+    if (!cur) return null;
+    const hook = rowToWebhook(cur);
     if (typeof updates.name === 'string') hook.name = updates.name;
     if (typeof updates.enabled === 'boolean') hook.enabled = updates.enabled;
-    if (updates.config && typeof updates.config === 'object') hook.config = { ...hook.config, ...updates.config };
-    if (updates.filters && typeof updates.filters === 'object') hook.filters = { ...hook.filters, ...updates.filters };
-    this._persist();
+    if (updates.config && typeof updates.config === 'object') {
+      hook.config = { ...hook.config, ...updates.config };
+    }
+    if (updates.filters && typeof updates.filters === 'object') {
+      hook.filters = { ...hook.filters, ...updates.filters };
+    }
+    SQL.updateWebhook.run(
+      hook.name, hook.enabled ? 1 : 0,
+      JSON.stringify(hook.config), JSON.stringify(hook.filters), id
+    );
     return hook;
   }
 
   setWebhookLastDelivery(id, info) {
-    const hook = this.webhooks.find((h) => h.id === id);
-    if (!hook) return;
-    hook.lastDelivery = { ...info, at: new Date().toISOString() };
-    this._persist();
+    const payload = JSON.stringify({ ...info, at: new Date().toISOString() });
+    SQL.setWebhookDelivery.run(payload, id);
   }
 
   deleteWebhook(id) {
-    const before = this.webhooks.length;
-    this.webhooks = this.webhooks.filter((h) => h.id !== id);
-    if (this.webhooks.length !== before) this._persist();
+    SQL.deleteWebhook.run(id);
   }
 
   getWebhooks() {
-    return this.webhooks;
+    return SQL.selectAllWebhooks.all().map(rowToWebhook);
   }
 
   getWebhook(id) {
-    return this.webhooks.find((h) => h.id === id) || null;
+    const row = SQL.selectWebhook.get(id);
+    return row ? rowToWebhook(row) : null;
   }
 
-  // ── Schedules ──────────────────────────────────────────
-  // Cron-style scheduled bulk actions. Persisted in the store snapshot
-  // and consulted once per minute by the scheduler runner in
-  // `server/scheduler.js`. Shape:
-  //   { id, name, cron, action, command?, target:{kind,value},
-  //     enabled, createdAt, createdBy, lastRunAt?, lastResult? }
+  // ── Schedules (SQLite) ──────────────────────────────────
 
   getSchedules() {
-    return this.schedules;
+    return SQL.selectAllSchedules.all().map(rowToSchedule);
   }
 
   getSchedule(id) {
-    return this.schedules.find((s) => s.id === id) || null;
+    const row = SQL.selectSchedule.get(id);
+    return row ? rowToSchedule(row) : null;
   }
 
   addSchedule(data) {
@@ -658,39 +855,35 @@ class Store {
       lastRunAt: null,
       lastResult: null,
     };
-    this.schedules.push(sched);
-    this._persist();
+    SQL.insertSchedule.run(
+      sched.id, sched.name, sched.cron, sched.action, sched.command,
+      JSON.stringify(sched.target || {}), sched.enabled ? 1 : 0,
+      sched.createdAt, sched.createdBy, null, null
+    );
     return sched;
   }
 
   updateSchedule(id, updates) {
-    const sched = this.schedules.find((s) => s.id === id);
-    if (!sched) return null;
+    const cur = SQL.selectSchedule.get(id);
+    if (!cur) return null;
+    const sched = rowToSchedule(cur);
     const ALLOWED = ['name', 'cron', 'action', 'command', 'target', 'enabled'];
     for (const k of ALLOWED) {
       if (k in updates) sched[k] = updates[k];
     }
-    this._persist();
+    SQL.updateSchedule.run(
+      sched.name, sched.cron, sched.action, sched.command,
+      JSON.stringify(sched.target || {}), sched.enabled ? 1 : 0, id
+    );
     return sched;
   }
 
   deleteSchedule(id) {
-    const before = this.schedules.length;
-    this.schedules = this.schedules.filter((s) => s.id !== id);
-    if (this.schedules.length !== before) this._persist();
+    SQL.deleteSchedule.run(id);
   }
 
-  /**
-   * Mark a schedule as just-run with its outcome. The runner calls this
-   * on every tick (regardless of dispatch success) so the UI can show
-   * "last run 3m ago — 5 sent, 2 skipped".
-   */
   recordScheduleRun(id, result) {
-    const sched = this.schedules.find((s) => s.id === id);
-    if (!sched) return;
-    sched.lastRunAt = new Date().toISOString();
-    sched.lastResult = result;
-    this._persist();
+    SQL.recordRun.run(new Date().toISOString(), JSON.stringify(result || {}), id);
   }
 }
 

@@ -46,4 +46,8 @@ jobs:
           node --check index.js
           node --check auth.js
           node --check store.js
+          node --check db.js
           node --check config.js
+      - name: Smoke test — load store + open SQLite
+        working-directory: server
+        run: node -e "const s=require('./store'); console.log('store loaded; events=', s.getEvents(1).length)"
