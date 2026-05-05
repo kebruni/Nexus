@@ -229,8 +229,11 @@ class Store {
 
     this.HISTORY_LIMIT = 200;
 
-    // GC offline agents older than 24h, hourly
-    setInterval(() => this.cleanupDeadAgents(), 60 * 60 * 1000);
+    // GC offline agents older than 24h, hourly. .unref() so the timer
+    // never blocks process exit (matters for CI smoke checks and short-
+    // lived scripts that just `require('./store')`).
+    const gcTimer = setInterval(() => this.cleanupDeadAgents(), 60 * 60 * 1000);
+    if (typeof gcTimer.unref === 'function') gcTimer.unref();
 
     const counts = SQL.countEvents.get();
     const alertCounts = SQL.countAlerts.get();
