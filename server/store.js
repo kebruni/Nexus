@@ -91,6 +91,7 @@ const SQL = {
   ),
   deleteGroup: db.prepare('DELETE FROM groups WHERE name = ?'),
   selectAllGroups: db.prepare('SELECT name, color, created_at FROM groups ORDER BY name ASC'),
+  selectGroup: db.prepare('SELECT name, color, created_at FROM groups WHERE name = ?'),
 
   // scripts
   insertScript: db.prepare('INSERT INTO scripts(id, name, code, created_at) VALUES (?,?,?,?)'),
@@ -712,9 +713,13 @@ class Store {
   // ── Groups (SQLite) ─────────────────────────────────────
 
   addGroup(name, color = '#3b82f6') {
-    const g = { name, color, createdAt: new Date().toISOString() };
-    SQL.upsertGroup.run(name, color, g.createdAt);
-    return g;
+    // Upsert: on conflict only `color` is updated, `created_at` is
+    // preserved. Re-read so the returned object reflects what's
+    // actually in the DB (callers that rely on `createdAt` would
+    // otherwise get a stale-looking new timestamp on color edits).
+    SQL.upsertGroup.run(name, color, new Date().toISOString());
+    const row = SQL.selectGroup.get(name);
+    return row ? rowToGroup(row) : { name, color, createdAt: null };
   }
 
   deleteGroup(name) {

@@ -169,7 +169,7 @@ function migrateFromLegacyJson() {
       for (const r of raw.alertRules) {
         stmt.run(
           r.id, r.name, r.metric, r.operator || 'gt', r.threshold,
-          r.duration || 0, r.enabled ? 1 : 0, r.agentId || null
+          r.duration || 0, r.enabled !== false ? 1 : 0, r.agentId || null
         );
       }
     }
@@ -203,7 +203,7 @@ function migrateFromLegacyJson() {
       );
       for (const h of raw.webhooks) {
         stmt.run(
-          h.id, h.name, h.type, h.enabled ? 1 : 0,
+          h.id, h.name, h.type, h.enabled !== false ? 1 : 0,
           JSON.stringify(h.config || {}), JSON.stringify(h.filters || {}),
           h.createdAt || new Date().toISOString(),
           h.lastDelivery ? JSON.stringify(h.lastDelivery) : null
@@ -219,7 +219,7 @@ function migrateFromLegacyJson() {
       for (const s of raw.schedules) {
         stmt.run(
           s.id, s.name, s.cron, s.action, s.command || null,
-          JSON.stringify(s.target || {}), s.enabled ? 1 : 0,
+          JSON.stringify(s.target || {}), s.enabled !== false ? 1 : 0,
           s.createdAt || new Date().toISOString(), s.createdBy || null,
           s.lastRunAt || null,
           s.lastResult ? JSON.stringify(s.lastResult) : null
