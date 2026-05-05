@@ -406,6 +406,7 @@ class Store {
         this.agents.delete(existingId);
         this.metricsHistory.delete(existingId);
         this.latencies.delete(existingId);
+        SQL.deleteChatByAgent.run(existingId);
       }
     }
 
