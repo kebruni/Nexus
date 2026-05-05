@@ -14,6 +14,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import ChangePasswordDialog from './ChangePasswordDialog';
 import TwoFactorPanel from './TwoFactorPanel';
+import NotificationsPanel from './NotificationsPanel';
 import type { Language } from '../i18n/translations';
 
 type Tab = 'profile' | 'security' | 'preferences';
@@ -114,6 +115,7 @@ export default function SettingsPage() {
                 </button>
               </div>
               <TwoFactorPanel />
+              <NotificationsPanel />
             </div>
           )}
 

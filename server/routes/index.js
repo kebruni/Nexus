@@ -16,4 +16,5 @@ module.exports = function registerRoutes(app, deps) {
   require('./schedules')(app, deps);
   require('./scripts')(app, deps);
   require('./backup')(app, deps);
+  require('./push')(app, deps);
 };

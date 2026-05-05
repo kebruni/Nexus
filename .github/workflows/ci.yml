@@ -48,6 +48,8 @@ jobs:
           node --check store.js
           node --check db.js
           node --check config.js
+          node --check pushSender.js
+          node --check routes/push.js
       - name: Smoke test — load store + open SQLite
         working-directory: server
         run: node -e "const s=require('./store'); console.log('store loaded; events=', s.getEvents(1).length)"
