@@ -5,6 +5,8 @@
  * its events routed back out to the dashboard namespace. This module
  * is purely a relay — no business logic lives here.
  */
+const pushSender = require('../pushSender');
+
 module.exports = function registerAgentSockets({ agentNsp, dashNsp, store, notifier }) {
   agentNsp.on('connection', (socket) => {
     const agentInfo = socket.handshake.auth;
@@ -29,6 +31,7 @@ module.exports = function registerAgentSockets({ agentNsp, dashNsp, store, notif
         store.addEvent('alert_triggered', alert.message, agentId);
         dashNsp.emit('alert:new', alert);
         notifier.dispatchAlert(store, alert);
+        pushSender.dispatchAlert(store, alert);
       }
     });
 

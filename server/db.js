@@ -127,6 +127,18 @@ db.exec(`
     last_result_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth_key    TEXT NOT NULL,
+    user_agent  TEXT,
+    created_at  TEXT NOT NULL,
+    last_used   TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
   CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT

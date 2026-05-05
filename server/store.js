@@ -134,6 +134,18 @@ const SQL = {
   wipeScripts: db.prepare('DELETE FROM scripts'),
   wipeWebhooks: db.prepare('DELETE FROM webhooks'),
   wipeSchedules: db.prepare('DELETE FROM schedules'),
+
+  // push subscriptions
+  insertPushSub: db.prepare(
+    `INSERT OR REPLACE INTO push_subscriptions(id, user_id, endpoint, p256dh, auth_key, user_agent, created_at)
+     VALUES (?,?,?,?,?,?,?)`
+  ),
+  deletePushSubByEndpoint: db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?'),
+  deletePushSubsByUser: db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?'),
+  selectPushSubsByUser: db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?'),
+  selectAllPushSubs: db.prepare('SELECT * FROM push_subscriptions'),
+  countPushSubsByUser: db.prepare('SELECT COUNT(*) AS c FROM push_subscriptions WHERE user_id = ?'),
+  touchPushSub: db.prepare('UPDATE push_subscriptions SET last_used = ? WHERE endpoint = ?'),
 };
 
 // ── Row → object helpers ────────────────────────────────
@@ -204,6 +216,17 @@ function rowToSchedule(r) {
     createdBy: r.created_by,
     lastRunAt: r.last_run_at,
     lastResult: parseJsonSafe(r.last_result_json, null),
+  };
+}
+function rowToPushSub(r) {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    endpoint: r.endpoint,
+    keys: { p256dh: r.p256dh, auth: r.auth_key },
+    userAgent: r.user_agent,
+    createdAt: r.created_at,
+    lastUsed: r.last_used,
   };
 }
 function parseJsonSafe(s, fallback) {
@@ -893,6 +916,48 @@ class Store {
 
   recordScheduleRun(id, result) {
     SQL.recordRun.run(new Date().toISOString(), JSON.stringify(result || {}), id);
+  }
+
+  // ── Push subscriptions ─────────────────────────────────
+  // Stored per-user. A single user can have multiple subscriptions
+  // (different browsers / devices). Endpoint is unique across all
+  // users — the same browser will replace its row via INSERT OR
+  // REPLACE rather than accumulate dupes.
+
+  addPushSubscription(userId, sub, userAgent) {
+    if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+      throw new Error('subscription must have endpoint and keys.p256dh / keys.auth');
+    }
+    const id = `${userId}:${Buffer.from(sub.endpoint).toString('base64').slice(-24)}`;
+    SQL.insertPushSub.run(
+      id, userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth,
+      userAgent || null, new Date().toISOString()
+    );
+    return id;
+  }
+
+  removePushSubscriptionByEndpoint(endpoint) {
+    return SQL.deletePushSubByEndpoint.run(endpoint).changes;
+  }
+
+  removeAllPushSubscriptionsForUser(userId) {
+    return SQL.deletePushSubsByUser.run(userId).changes;
+  }
+
+  getPushSubscriptionsForUser(userId) {
+    return SQL.selectPushSubsByUser.all(userId).map(rowToPushSub);
+  }
+
+  getAllPushSubscriptions() {
+    return SQL.selectAllPushSubs.all().map(rowToPushSub);
+  }
+
+  countPushSubscriptionsForUser(userId) {
+    return SQL.countPushSubsByUser.get(userId).c;
+  }
+
+  touchPushSubscription(endpoint) {
+    SQL.touchPushSub.run(new Date().toISOString(), endpoint);
   }
 }
 

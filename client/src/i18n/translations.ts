@@ -929,6 +929,46 @@ export const translations = {
   'common.save': { en: 'Save', ru: 'Сохранить', kz: 'Сақтау' },
   'common.delete': { en: 'Delete', ru: 'Удалить', kz: 'Жою' },
   'common.search': { en: 'Search', ru: 'Поиск', kz: 'Іздеу' },
+  // ── Browser push notifications ──
+  'push.title': {
+    en: 'Browser notifications',
+    ru: 'Уведомления в браузере',
+    kz: 'Браузер хабарландырулары',
+  },
+  'push.desc': {
+    en: 'Get a desktop pop-up the moment a Nexus alert fires — even when the dashboard tab is closed.',
+    ru: 'Получай уведомление на рабочем столе сразу, как только сработает алерт Nexus — даже если вкладка дашборда закрыта.',
+    kz: 'Nexus ескертуі іске қосылған кезде дереу жұмыс үстелінде хабарландыру алыңыз — дашборд жабық болса да.',
+  },
+  'push.unsupported': {
+    en: 'This browser does not support Web Push notifications.',
+    ru: 'Этот браузер не поддерживает Web Push уведомления.',
+    kz: 'Бұл браузер Web Push хабарландыруларын қолдамайды.',
+  },
+  'push.loading': { en: 'Loading…', ru: 'Загрузка…', kz: 'Жүктелуде…' },
+  'push.enabledOn': {
+    en: 'Enabled on {n} device(s).',
+    ru: 'Включено на {n} устройстве(ах).',
+    kz: '{n} құрылғыда қосулы.',
+  },
+  'push.enableButton': { en: 'Enable', ru: 'Включить', kz: 'Қосу' },
+  'push.disableButton': { en: 'Disable', ru: 'Отключить', kz: 'Өшіру' },
+  'push.testButton': { en: 'Send test', ru: 'Тест', kz: 'Тест' },
+  'push.enableSuccess': {
+    en: 'Browser notifications enabled.',
+    ru: 'Уведомления в браузере включены.',
+    kz: 'Браузер хабарландырулары қосылды.',
+  },
+  'push.disableSuccess': {
+    en: 'Browser notifications disabled.',
+    ru: 'Уведомления в браузере отключены.',
+    kz: 'Браузер хабарландырулары өшірілді.',
+  },
+  'push.testSent': {
+    en: 'Test push delivered to {n}/{total} device(s).',
+    ru: 'Тестовое уведомление доставлено на {n} из {total} устройств.',
+    kz: '{n}/{total} құрылғыға тест хабарландыруы жеткізілді.',
+  },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
