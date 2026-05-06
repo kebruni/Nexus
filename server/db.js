@@ -156,6 +156,25 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT
   );
+
+  /* Per-failure rows (auto-pruned by the time window in queries) and
+   * a small lockouts table holding the wall-clock timestamp until which
+   * a key (ip or username) is locked. Persisted across restarts so an
+   * attacker can't bypass a lockout by waiting for a service restart. */
+  CREATE TABLE IF NOT EXISTS login_failures (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope     TEXT NOT NULL,         -- 'ip' or 'user'
+    key       TEXT NOT NULL,         -- the ip / lowercased username
+    ts        INTEGER NOT NULL       -- ms since epoch
+  );
+  CREATE INDEX IF NOT EXISTS idx_lf_scope_key_ts ON login_failures(scope, key, ts);
+
+  CREATE TABLE IF NOT EXISTS login_lockouts (
+    scope         TEXT NOT NULL,
+    key           TEXT NOT NULL,
+    locked_until  INTEGER NOT NULL,
+    PRIMARY KEY (scope, key)
+  );
 `);
 
 // ── One-time migration from legacy .data/store.json ──────

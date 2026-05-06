@@ -1,9 +1,10 @@
 /**
  * /api/auth/* — login, 2FA enrolment, change-password.
  *
- * Login is rate-limited in-memory (5 tries / 15 min per IP). If 2FA is
- * enabled for the account, `/login` returns a `ticket` + `totpRequired`
- * flag and the client must finish via `/login/totp`.
+ * Login lockout is dual-axis (per-IP and per-username), persisted across
+ * restarts in SQLite via store.recordLoginFailure / getLoginLockout. If
+ * 2FA is enabled for the account, `/login` returns a `ticket` +
+ * `totpRequired` flag and the client must finish via `/login/totp`.
  */
 module.exports = function registerAuth(app, { store, auth }) {
   const {
@@ -12,29 +13,34 @@ module.exports = function registerAuth(app, { store, auth }) {
     authMiddleware,
   } = auth;
 
-  const loginAttempts = new Map();
-
   app.post('/api/auth/login', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress;
-    const now = Date.now();
+    const { username, password } = req.body || {};
 
-    if (loginAttempts.has(ip)) {
-      const attempts = loginAttempts.get(ip);
-      const recent = attempts.filter((t) => now - t < 15 * 60 * 1000);
-      if (recent.length >= 5) {
-        return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
-      }
-      recent.push(now);
-      loginAttempts.set(ip, recent);
-    } else {
-      loginAttempts.set(ip, [now]);
+    // Pre-check: is this IP or username currently locked?
+    const lock = store.getLoginLockout(ip, username);
+    if (lock.ipLockedUntil) {
+      const wait = Math.ceil((lock.ipLockedUntil - Date.now()) / 1000);
+      return res.status(429).json({ error: `Too many login attempts from this IP. Try again in ${wait}s.` });
+    }
+    if (lock.userLockedUntil) {
+      const wait = Math.ceil((lock.userLockedUntil - Date.now()) / 1000);
+      return res.status(429).json({ error: `Account temporarily locked. Try again in ${wait}s.` });
     }
 
-    const { username, password } = req.body;
     const result = authenticate(username, password);
-    if (!result) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!result) {
+      const after = store.recordLoginFailure(ip, username);
+      if (after.userLockedUntil) {
+        store.addEvent('admin_lockout', `Account ${username} locked after ${after.userAttempts} failed attempts`, null, username);
+      }
+      if (after.ipLockedUntil) {
+        store.addEvent('admin_lockout_ip', `IP ${ip} locked after ${after.ipAttempts} failed attempts`, null, null);
+      }
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-    loginAttempts.delete(ip);
+    store.clearLoginFailures(ip, username);
     if (result.totpRequired) {
       store.addEvent('login_totp_pending', `${username} entered correct password — awaiting 2FA code`, null, username);
       return res.json({ totpRequired: true, ticket: result.ticket, username: result.username });

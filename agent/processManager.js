@@ -11,22 +11,45 @@ const si = require('systeminformation');
  */
 async function listProcesses({ limit = 200 } = {}) {
   try {
+    // First call to si.processes() always reports pcpu=0 because CPU usage
+    // is computed as a delta between two snapshots. On a freshly-spawned
+    // sample the deltas don't exist yet, so kick once to seed and then
+    // wait briefly before taking the real measurement.
+    if (!listProcesses._seeded) {
+      try { await si.processes(); } catch (_e) { /* ignore — seed only */ }
+      await new Promise((r) => setTimeout(r, 250));
+      listProcesses._seeded = true;
+    }
     const data = await si.processes();
     const list = (data.list || [])
-      .map((p) => ({
-        pid: p.pid,
-        parentPid: p.parentPid,
-        name: p.name || '',
-        cpu: typeof p.pcpu === 'number' ? Math.round(p.pcpu * 10) / 10 : 0,
-        mem: typeof p.pmem === 'number' ? Math.round(p.pmem * 10) / 10 : 0,
-        memRssMb: p.mem_rss ? Math.round(p.mem_rss / 1024) : 0,
-        user: p.user || '',
-        state: p.state || '',
-        started: p.started || '',
-        command: (p.command || p.name || '').slice(0, 240),
-      }))
-      // Sort by CPU desc, then memory desc — UI can re-sort, this is just a sane default
-      .sort((a, b) => b.cpu - a.cpu || b.mem - a.mem)
+      .map((p) => {
+        // systeminformation field names changed across versions; accept both
+        const rawCpu = (typeof p.cpu === 'number' ? p.cpu
+          : typeof p.pcpu === 'number' ? p.pcpu
+          : 0);
+        const rawMem = (typeof p.mem === 'number' ? p.mem
+          : typeof p.pmem === 'number' ? p.pmem
+          : 0);
+        const rawRssKb = (typeof p.memRss === 'number' ? p.memRss
+          : typeof p.mem_rss === 'number' ? p.mem_rss
+          : 0);
+        return {
+          pid: p.pid,
+          parentPid: p.parentPid,
+          name: p.name || '',
+          cpu: Math.round(rawCpu * 10) / 10,
+          mem: Math.round(rawMem * 10) / 10,
+          memRssMb: rawRssKb ? Math.round(rawRssKb / 1024) : 0,
+          user: p.user || '',
+          state: p.state || '',
+          started: p.started || '',
+          command: (p.command || p.name || '').slice(0, 240),
+        };
+      })
+      // Sort by CPU desc, then by absolute RSS desc (so userspace
+      // processes win the tiebreaker on idle systems where every cpu is 0
+      // and pmem rounds to 0). Pmem is kept as a final tiebreaker.
+      .sort((a, b) => b.cpu - a.cpu || b.memRssMb - a.memRssMb || b.mem - a.mem)
       .slice(0, limit);
 
     return {
