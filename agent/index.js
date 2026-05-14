@@ -6,7 +6,7 @@ const notifier = require('node-notifier');
 const config = require('./config');
 const { getSystemInfo, collectMetrics } = require('./metrics');
 const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAction, lockScreen, soundAlarm } = require('./systemControl');
-const { listDirectory, readFile, deleteFile } = require('./fileManager');
+const { listDirectory, readFile, deleteFile, mkdirSync, renameFile } = require('./fileManager');
 const { startStreaming, stopStreaming, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
 const vnc = require('./vnc');
 const { getClipboard, setClipboard } = require('./clipboard');
@@ -148,7 +148,19 @@ async function main() {
   socket.on('file:delete', ({ path: filePath }) => {
     console.log(`  [FILE] Delete: ${filePath}`);
     const result = deleteFile(filePath);
-    socket.emit('file:list:result', result); // Trigger a refresh
+    socket.emit('file:delete:result', result);
+  });
+
+  socket.on('file:mkdir', ({ path: dirPath }) => {
+    console.log(`  [FILE] Mkdir: ${dirPath}`);
+    const result = mkdirSync(dirPath);
+    socket.emit('file:mkdir:result', result);
+  });
+
+  socket.on('file:rename', ({ oldPath, newPath }) => {
+    console.log(`  [FILE] Rename: ${oldPath} -> ${newPath}`);
+    const result = renameFile(oldPath, newPath);
+    socket.emit('file:rename:result', result);
   });
 
   // ── Screen Handlers (legacy Socket.IO — kept for fallback) ──

@@ -93,6 +93,28 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
       }
     });
 
+    socket.on('file:mkdir', ({ agentId, dirPath }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'file:mkdir');
+      const agentSocket = findAgentSocket(agentId);
+      if (agentSocket) {
+        store.addEvent('file_mkdir', `Admin created directory: ${dirPath}`, agentId, socket.user.username);
+        agentSocket.emit('file:mkdir', { path: dirPath });
+      } else {
+        socket.emit('file:mkdir:result', { success: false, error: 'Agent not connected' });
+      }
+    });
+
+    socket.on('file:rename', ({ agentId, oldPath, newPath }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'file:rename');
+      const agentSocket = findAgentSocket(agentId);
+      if (agentSocket) {
+        store.addEvent('file_rename', `Admin renamed: ${oldPath} → ${newPath}`, agentId, socket.user.username);
+        agentSocket.emit('file:rename', { oldPath, newPath });
+      } else {
+        socket.emit('file:rename:result', { success: false, error: 'Agent not connected' });
+      }
+    });
+
     // ── Local (server) file operations ──────────────────────
     socket.on('local:file:list', ({ dirPath }) => {
       socket.emit('local:file:list:result', localFs.listDirectory(dirPath));
