@@ -9,6 +9,14 @@
  */
 const VALID_OS = ['windows', 'linux', 'macos', 'all'];
 
+function detectAgentOs(agent) {
+  const raw = String(agent?.platform || '').toLowerCase();
+  if (raw.includes('win')) return 'windows';
+  if (raw.includes('darwin') || raw.includes('mac')) return 'macos';
+  if (raw.includes('linux')) return 'linux';
+  return null;
+}
+
 function validatePayload(body) {
   if (!body || typeof body !== 'object') return 'invalid body';
   if (!body.name || typeof body.name !== 'string' || body.name.length > 80) {
@@ -80,6 +88,16 @@ module.exports = function registerQuickActions(app, { store, auth, orchestration
   app.post('/api/quick-actions/:id/run/:agentId', authMiddleware, requireRole('operator'), (req, res) => {
     const action = store.getQuickAction(req.params.id);
     if (!action) return res.status(404).json({ error: 'quick action not found' });
+    const agent = store.getAgent(req.params.agentId);
+    if (!agent) return res.status(404).json({ error: 'agent not found' });
+
+    const agentOs = detectAgentOs(agent);
+    if (action.os !== 'all' && agentOs && action.os !== agentOs) {
+      return res.status(400).json({
+        error: `quick action OS mismatch: action=${action.os}, agent=${agentOs}`,
+      });
+    }
+
     const result = orchestration.fanOutBulkAction({
       action: 'execute',
       agentIds: [req.params.agentId],

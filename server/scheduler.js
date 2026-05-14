@@ -34,11 +34,18 @@ function parseField(raw, idx) {
   const parts = String(raw).split(',');
   const set = new Set();
 
-  for (const part of parts) {
+  for (const rawPart of parts) {
+    const part = rawPart.trim();
+    if (!part) throw new Error(`Invalid empty item in field ${idx}`);
+
     let stepStr;
     let rangeStr = part;
     if (part.includes('/')) {
-      [rangeStr, stepStr] = part.split('/');
+      const slashParts = part.split('/');
+      if (slashParts.length !== 2 || !slashParts[0] || !slashParts[1]) {
+        throw new Error(`Invalid step syntax in field ${idx}: ${part}`);
+      }
+      [rangeStr, stepStr] = slashParts;
     }
     const step = stepStr ? parseInt(stepStr, 10) : 1;
     if (!Number.isFinite(step) || step <= 0) {
