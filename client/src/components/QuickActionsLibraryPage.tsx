@@ -258,7 +258,7 @@ export default function QuickActionsLibraryPage() {
 
       {!loading && actions.length === 0 && (
         <EmptyState
-          icon={<Zap className="w-8 h-8" />}
+          icon={Zap}
           title={t('quickActions.emptyTitle')}
           description={t('quickActions.emptyDesc')}
         />
