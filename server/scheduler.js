@@ -31,14 +31,19 @@ const FIELD_BOUNDS = [
 
 function parseField(raw, idx) {
   const { min, max } = FIELD_BOUNDS[idx];
-  const parts = String(raw).split(',');
+  const parts = String(raw).split(',').map((p) => p.trim());
   const set = new Set();
 
   for (const part of parts) {
+    if (!part) throw new Error(`Empty token in field ${idx}`);
     let stepStr;
     let rangeStr = part;
     if (part.includes('/')) {
-      [rangeStr, stepStr] = part.split('/');
+      const split = part.split('/');
+      if (split.length !== 2 || split[0] === '' || split[1] === '') {
+        throw new Error(`Invalid step syntax in field ${idx}: ${part}`);
+      }
+      [rangeStr, stepStr] = split;
     }
     const step = stepStr ? parseInt(stepStr, 10) : 1;
     if (!Number.isFinite(step) || step <= 0) {
