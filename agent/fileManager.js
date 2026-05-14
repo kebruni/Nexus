@@ -112,6 +112,33 @@ function deleteFile(filePath) {
 }
 
 /**
+ * Create a directory
+ */
+function mkdirSync(dirPath) {
+  try {
+    const resolved = path.resolve(dirPath);
+    fs.mkdirSync(resolved, { recursive: true });
+    return { success: true, path: resolved };
+  } catch (error) {
+    return { success: false, path: dirPath, error: error.message };
+  }
+}
+
+/**
+ * Rename / move a file or directory
+ */
+function renameFile(oldPath, newPath) {
+  try {
+    const resolvedOld = path.resolve(oldPath);
+    const resolvedNew = path.resolve(newPath);
+    fs.renameSync(resolvedOld, resolvedNew);
+    return { success: true, oldPath: resolvedOld, newPath: resolvedNew };
+  } catch (error) {
+    return { success: false, oldPath, newPath, error: error.message };
+  }
+}
+
+/**
  * Simple MIME type guesser
  */
 function guessMimeType(filePath) {
@@ -148,4 +175,4 @@ function guessMimeType(filePath) {
   return types[ext] || 'application/octet-stream';
 }
 
-module.exports = { listDirectory, readFile, deleteFile };
+module.exports = { listDirectory, readFile, deleteFile, mkdirSync, renameFile };
