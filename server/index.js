@@ -70,7 +70,7 @@ require('./sockets/dashboard')({ dashNsp, store, orchestration });
 // ── SPA fallback (any non-API route serves the dashboard) ─
 // Must be registered AFTER every API route so /api/* keeps priority.
 if (HAS_CLIENT_DIST) {
-  app.get(/^\/(?!api\/|socket\.io\/|agent\/|dashboard\/|AgentSetup\.exe$).*/, (_req, res) => {
+  app.get(/^\/(?!api\/|socket\.io\/|agent\/|AgentSetup\.exe$).*/, (_req, res) => {
     res.sendFile(path.join(CLIENT_DIST, 'index.html'));
   });
 }

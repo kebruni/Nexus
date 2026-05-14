@@ -10,7 +10,6 @@
  *
  * What stays in memory (intentional — runtime-only):
  *   - agents          (tied to live socket connections)
- *   - metricsHistory  (high-volume, useless after restart)
  *   - latencies       (refreshed on every ping)
  *   - alertTimers     (stateful "rule firing for N seconds" tracker)
  */
@@ -124,6 +123,25 @@ const SQL = {
   selectAllSchedules: db.prepare('SELECT * FROM schedules ORDER BY created_at DESC'),
   selectSchedule: db.prepare('SELECT * FROM schedules WHERE id = ?'),
   recordRun: db.prepare('UPDATE schedules SET last_run_at=?, last_result_json=? WHERE id=?'),
+
+  // metrics history
+  insertMetric: db.prepare(
+    'INSERT INTO metrics_history(agent_id, data_json, timestamp) VALUES (?,?,?)'
+  ),
+  selectMetrics: db.prepare(
+    'SELECT data_json, timestamp FROM metrics_history WHERE agent_id = ? ORDER BY timestamp ASC LIMIT ?'
+  ),
+  countMetrics: db.prepare(
+    'SELECT COUNT(*) AS c FROM metrics_history WHERE agent_id = ?'
+  ),
+  trimMetrics: db.prepare(
+    `DELETE FROM metrics_history WHERE agent_id = ? AND id NOT IN
+       (SELECT id FROM metrics_history WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ?)`
+  ),
+  deleteMetricsByAgent: db.prepare(
+    'DELETE FROM metrics_history WHERE agent_id = ?'
+  ),
+  wipeMetrics: db.prepare('DELETE FROM metrics_history'),
 
   // wipe (used by restoreSnapshot)
   wipeEvents: db.prepare('DELETE FROM events'),
@@ -291,8 +309,6 @@ class Store {
   constructor() {
     /** @type {Map<string, object>} agentId -> agent info & latest metrics */
     this.agents = new Map();
-    /** @type {Map<string, Array>} agentId -> metrics history */
-    this.metricsHistory = new Map();
     /** @type {Map<string, number>} ruleId:agentId -> first-trigger ms */
     this.alertTimers = new Map();
     /** @type {Map<string, number>} agentId -> latency ms */
@@ -383,6 +399,7 @@ class Store {
       SQL.wipeScripts.run();
       SQL.wipeWebhooks.run();
       SQL.wipeSchedules.run();
+      SQL.wipeMetrics.run();
 
       if (Array.isArray(snap.eventLog)) {
         for (const e of snap.eventLog) {
@@ -460,9 +477,9 @@ class Store {
         const t = new Date(agent.disconnectedAt);
         if (now - t > DEAD_THRESHOLD) {
           this.agents.delete(agentId);
-          this.metricsHistory.delete(agentId);
           this.latencies.delete(agentId);
           SQL.deleteChatByAgent.run(agentId);
+          SQL.deleteMetricsByAgent.run(agentId);
           console.log(`[Store] Garbage collected dead agent: ${agentId}`);
         }
       }
@@ -475,9 +492,9 @@ class Store {
     for (const [existingId, existingAgent] of this.agents.entries()) {
       if (existingId !== agentId && existingAgent.hostname === info.hostname) {
         this.agents.delete(existingId);
-        this.metricsHistory.delete(existingId);
         this.latencies.delete(existingId);
         SQL.deleteChatByAgent.run(existingId);
+        SQL.deleteMetricsByAgent.run(existingId);
       }
     }
 
@@ -519,7 +536,7 @@ class Store {
   getAllAgents() { return Array.from(this.agents.values()); }
   getOnlineAgents() { return this.getAllAgents().filter((a) => a.status === 'online'); }
 
-  // ── Metrics (in-memory) ─────────────────────────────────
+  // ── Metrics (SQLite) ───────────────────────────────────
 
   updateMetrics(agentId, metrics) {
     const agent = this.agents.get(agentId);
@@ -528,19 +545,21 @@ class Store {
       agent.lastSeen = new Date().toISOString();
       agent.status = 'online';
     }
-    if (!this.metricsHistory.has(agentId)) {
-      this.metricsHistory.set(agentId, []);
-    }
-    const history = this.metricsHistory.get(agentId);
-    history.push({ ...metrics, timestamp: new Date().toISOString() });
-    if (history.length > this.HISTORY_LIMIT) {
-      history.splice(0, history.length - this.HISTORY_LIMIT);
+    const ts = new Date().toISOString();
+    SQL.insertMetric.run(agentId, JSON.stringify(metrics), ts);
+    // Trim opportunistically (~10% of writes) to keep row count bounded
+    if (Math.random() < 0.1) {
+      SQL.trimMetrics.run(agentId, agentId, this.HISTORY_LIMIT);
     }
   }
 
   getMetricsHistory(agentId, limit = 60) {
-    const history = this.metricsHistory.get(agentId) || [];
-    return history.slice(-limit);
+    const rows = SQL.selectMetrics.all(agentId, 100000);
+    const recent = rows.slice(-limit);
+    return recent.map((r) => {
+      const data = parseJsonSafe(r.data_json, {});
+      return { ...data, timestamp: r.timestamp };
+    });
   }
 
   // ── Events (SQLite) ─────────────────────────────────────

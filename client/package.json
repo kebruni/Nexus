@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
     "@types/qrcode": "^1.5.6",
+    "diplom-project": "file:..",
     "lucide-react": "^0.577.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",

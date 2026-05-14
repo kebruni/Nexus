@@ -16,6 +16,7 @@
     "pkg-legacy": "pkg index.js --targets node18-win-x64 --output dist/pc-control-agent-console.exe"
   },
   "dependencies": {
+    "diplom-project": "file:..",
     "iconv-lite": "^0.7.2",
     "node-notifier": "^10.0.1",
     "node-os-utils": "^2.0.1",
@@ -63,7 +64,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico",

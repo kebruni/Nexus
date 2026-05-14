@@ -152,6 +152,14 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 
+  CREATE TABLE IF NOT EXISTS metrics_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id    TEXT NOT NULL,
+    data_json   TEXT NOT NULL,
+    timestamp   TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_mh_agent_ts ON metrics_history(agent_id, timestamp DESC);
+
   CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT
