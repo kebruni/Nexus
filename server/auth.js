@@ -643,6 +643,7 @@ module.exports = {
   // Per-agent tokens
   issueAgentToken,
   verifyAgentToken,
+  touchAgentToken,
   revokeAgentToken,
   listAgentTokens,
   // Password policy (for tests)
