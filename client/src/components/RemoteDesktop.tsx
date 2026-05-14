@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSocket } from '../api/socket';
+import { useVncSocket } from '../hooks/useVncSocket';
+import type { MonitorInfo, VncStats } from '../hooks/useVncSocket';
 import {
   Tv,
   Play,
@@ -15,15 +17,10 @@ import {
   MonitorSmartphone,
   Camera,
   Video,
-  VideoOff
+  VideoOff,
+  Zap
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-
-interface MonitorInfo {
-  id: number;
-  name: string;
-  index: number;
-}
 
 interface RemoteDesktopProps {
   agentId: string;
@@ -48,6 +45,8 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const [autoHideLocalCursor, setAutoHideLocalCursor] = useState(false);
   const [showAdminCursor, setShowAdminCursor] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
+  const [vncStats, setVncStats] = useState<VncStats>({ bandwidth: 0, fps: 0, adaptiveQuality: 0 });
+  const [vncConnected, setVncConnected] = useState(false);
   
   const targetCursorRef = useRef({ x: 0, y: 0 });
   const currentCursorRef = useRef({ x: 0, y: 0 });
@@ -65,6 +64,71 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const mouseMoveThrottleRef = useRef<number>(16); // ~60fps for mouse movement
   const isMouseDownRef = useRef<boolean>(false);
   const mouseButtonRef = useRef<'left' | 'right'>('left');
+
+  // VNC frame handler: decode binary JPEG blob via createImageBitmap (GPU-accelerated)
+  const handleVncFrame = useCallback((blob: Blob) => {
+    frameTimesRef.current.push(Date.now());
+    createImageBitmap(blob).then((bitmap) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+      }
+      // Store as ImageBitmap for the render loop
+      if (imgRef.current && 'close' in imgRef.current) {
+        (imgRef.current as unknown as ImageBitmap).close();
+      }
+      imgRef.current = bitmap as unknown as HTMLImageElement;
+    }).catch(() => {
+      // Fallback: decode via Image element
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        if (canvas.width !== img.width || canvas.height !== img.height) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+        }
+        imgRef.current = img;
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => URL.revokeObjectURL(url);
+      img.src = url;
+    });
+  }, []);
+
+  const handleVncCursor = useCallback((x: number, y: number) => {
+    targetCursorRef.current = { x, y };
+  }, []);
+
+  const handleVncMonitors = useCallback((m: MonitorInfo[]) => {
+    setMonitors(m);
+  }, []);
+
+  const handleVncStats = useCallback((s: VncStats) => {
+    setVncStats(s);
+  }, []);
+
+  const handleAgentReady = useCallback(() => {
+    setVncConnected(true);
+  }, []);
+
+  const handleAgentGone = useCallback(() => {
+    setVncConnected(false);
+  }, []);
+
+  // VNC WebSocket hook
+  const vnc = useVncSocket({
+    agentId,
+    onFrame: handleVncFrame,
+    onCursor: handleVncCursor,
+    onMonitors: handleVncMonitors,
+    onStats: handleVncStats,
+    onAgentReady: handleAgentReady,
+    onAgentGone: handleAgentGone,
+  });
 
   // Calculate actual FPS
   useEffect(() => {
@@ -192,34 +256,10 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     drawCursorLabel(ctx, x, y, 'admin', 'rgba(255, 107, 44, 0.95)', '#1A0A00');
   };
 
+  // Socket.IO listeners for latency and clipboard (not part of VNC stream)
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-
-    const handleFrame = (data: { agentId: string; image: string; timestamp: number }) => {
-      if (data.agentId !== agentId) return;
-      frameTimesRef.current.push(Date.now());
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const img = new Image();
-      img.onload = () => {
-        if (canvas.width !== img.width || canvas.height !== img.height) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-        }
-        imgRef.current = img;
-      };
-      img.src = `data:image/jpeg;base64,${data.image}`;
-    };
-
-    const handleMonitors = (data: { agentId: string; monitors: MonitorInfo[] }) => {
-      if (data.agentId !== agentId) return;
-      setMonitors(data.monitors);
-    };
 
     const handleLatency = (data: { agentId: string; latency: number }) => {
       if (data.agentId !== agentId) return;
@@ -231,31 +271,17 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
       setClipboardText(data.text);
     };
 
-    const handleCursorpos = (data: { agentId: string; x: number; y: number }) => {
-      if (data.agentId !== agentId) return;
-      targetCursorRef.current = { x: data.x, y: data.y };
-    };
-
-    socket.on('screen:frame', handleFrame);
-    socket.on('screen:monitors', handleMonitors);
     socket.on('agent:latency', handleLatency);
     socket.on('clipboard:data', handleClipboard);
-    socket.on('screen:cursor', handleCursorpos);
 
-    // Request monitor list
-    socket.emit('screen:getMonitors', { agentId });
+    // Request monitor list via VNC
+    vnc.getMonitors();
 
     return () => {
-      socket.off('screen:frame', handleFrame);
-      socket.off('screen:monitors', handleMonitors);
       socket.off('agent:latency', handleLatency);
       socket.off('clipboard:data', handleClipboard);
-      socket.off('screen:cursor', handleCursorpos);
-      if (streaming) {
-        socket.emit('screen:stop', { agentId });
-      }
     };
-  }, [agentId, streaming]);
+  }, [agentId, vnc]);
 
   // Render loop for smooth cursor interpolation and constant FPS drawing
   useEffect(() => {
@@ -309,9 +335,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   }, [streaming, smoothCursor, showRemoteCursor, showAdminCursor, inputEnabled]);
 
   const startStreaming = () => {
-    const socket = getSocket();
-    if (!socket) return;
-    socket.emit('screen:start', { agentId, quality, fps, monitor: selectedMonitor });
+    vnc.startStream(fps, quality, selectedMonitor);
     setStreaming(true);
     targetCursorRef.current = { x: 0, y: 0 };
     currentCursorRef.current = { x: 0, y: 0 };
@@ -319,26 +343,14 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   };
 
   const stopStreaming = () => {
-    const socket = getSocket();
-    if (!socket) return;
-    socket.emit('screen:stop', { agentId });
+    vnc.stopStream();
     setStreaming(false);
     targetCursorRef.current = { x: 0, y: 0 };
     currentCursorRef.current = { x: 0, y: 0 };
   };
 
   const emitMouseEvent = (x: number, y: number, type: 'move' | 'click' | 'dblclick' | 'wheel', button: 'left' | 'right' | 'scroll' = 'left', wheel?: number) => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.emit('screen:mouse', {
-      agentId,
-      x,
-      y,
-      type,
-      button,
-      wheel,
-    });
+    vnc.sendMouse(x, y, type, button, wheel || 0);
   };
 
   const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.WheelEvent<HTMLCanvasElement>) => {
@@ -436,20 +448,12 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!inputEnabled || !streaming) return;
     e.preventDefault();
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.emit('screen:keyboard', {
-      agentId,
-      key: e.key,
-      type: 'press',
-    });
+    vnc.sendKeyboard(e.key, 'press');
   };
 
   const sendSpecialKey = (key: string) => {
-    const socket = getSocket();
-    if (!socket || !inputEnabled || !streaming) return;
-    socket.emit('screen:keyboard', { agentId, key, type: 'press' });
+    if (!inputEnabled || !streaming) return;
+    vnc.sendKeyboard(key, 'press');
     screenAreaRef.current?.focus();
   };
 
@@ -573,7 +577,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
                    <span className={`relative inline-flex rounded-full h-2 w-2 ${streaming ? 'bg-emerald-500' : (isDark ? 'bg-slate-600' : 'bg-gray-300')}`}></span>
                  </span>
                  <span className={`text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-                   {streaming ? 'Live Stream' : 'Disconnected'}
+                   {streaming ? 'VNC Live' : vncConnected ? 'VNC Ready' : 'Disconnected'}
                  </span>
               </div>
             </div>
@@ -603,6 +607,15 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
                 <Monitor className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
                 <span className={`${isDark ? 'text-slate-300' : 'text-gray-600'} font-medium tracking-wide`}>{actualFps} FPS</span>
               </div>
+              {vncStats.bandwidth > 0 && (
+                <>
+                  <div className={`w-px h-3 ${isDark ? 'bg-slate-800' : 'bg-gray-300'}`}></div>
+                  <div className="flex items-center gap-1.5" title="VNC Bandwidth (per 2s)">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span className={`${isDark ? 'text-slate-300' : 'text-gray-600'} font-medium tracking-wide`}>{(vncStats.bandwidth / 1024).toFixed(0)} KB/s</span>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -808,8 +821,8 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
               <div className="w-20 h-20 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6">
                 <Monitor className="w-10 h-10 text-indigo-400" />
               </div>
-              <h2 className="text-white text-xl font-bold mb-2">Ready to Connect</h2>
-              <p className="text-white/40 text-sm mb-8">Start the stream to view and interact with the remote desktop</p>
+              <h2 className="text-white text-xl font-bold mb-2">{vncConnected ? 'VNC Ready' : 'Waiting for Agent'}</h2>
+              <p className="text-white/40 text-sm mb-8">{vncConnected ? 'Binary VNC channel active — press Connect to start streaming' : 'Agent VNC WebSocket not connected yet'}</p>
               
               <button
                 onClick={startStreaming}

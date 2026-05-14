@@ -227,27 +227,43 @@ node agent/index.js --server=http://192.168.1.50:3000 --agent-key=<key>
 ┌──────────────────┐     HTTPS / WSS     ┌─────────────────────┐
 │  Client ПК       │  Socket.IO /agent   │     Server ПК       │
 │  ┌────────────┐  │ ─────────────────▶  │  ┌──────────────┐   │
-│  │ Nexus Agent│  │                     │  │ server/      │   │
-│  │ (Electron) │  │  metrics, screen,   │  │ index.js     │   │
-│  │            │  │  cmd-results        │  │              │   │
-│  └────────────┘  │ ◀───────────────── │  │ store.js     │   │
-│                  │  cmds, file ops,    │  │ persistence  │   │
-└──────────────────┘  remote-input       │  │ auth         │   │
-                                         │  └──────────────┘   │
-┌──────────────────┐                     │  serves /api/...    │
-│  Браузер админа  │  Socket.IO          │  serves /socket.io  │
-│  ┌────────────┐  │  /dashboard         │  serves /  (SPA)    │
-│  │ React SPA  │  │ ─────────────────▶  │                     │
-│  │ client/dist│  │                     │  .data/nexus.db     │
-│  └────────────┘  │  events, agents,    │  .data/secrets.json │
-└──────────────────┘  alerts             └─────────────────────┘
+│  │ Nexus Agent│  │  metrics, cmds,     │  │ server/      │   │
+│  │ (Electron) │  │  cmd-results        │  │ index.js     │   │
+│  │            │  │ ◀───────────────── │  │ vnc-proxy.js │   │
+│  │  vnc.js    │  │  cmds, file ops     │  │ store.js     │   │
+│  └────────────┘  │                     │  │ persistence  │   │
+│        ↕         │  WebSocket /vnc     │  │ auth         │   │
+│  VNC binary WS   │ ═════════════════▶  │  └──────────────┘   │
+│  (screen frames) │  binary JPEG frames │                     │
+└──────────────────┘  + input events     │  serves /api/...    │
+                                         │  serves /socket.io  │
+┌──────────────────┐                     │  serves /vnc (WS)   │
+│  Браузер админа  │  Socket.IO          │  serves /  (SPA)    │
+│  ┌────────────┐  │  /dashboard         │                     │
+│  │ React SPA  │  │ ─────────────────▶  │  .data/nexus.db     │
+│  │ client/dist│  │  events, agents     │  .data/secrets.json │
+│  │            │  │                     │                     │
+│  │ VNC viewer │  │  WebSocket /vnc     │                     │
+│  │ (binary)   │  │ ═════════════════▶  │                     │
+│  └────────────┘  │  screen frames      │                     │
+└──────────────────┘  + input events     └─────────────────────┘
 ```
+
+**Два канала связи** (обновлено):
+
+- **Socket.IO** — управление, метрики, события, чат, файлы.
+- **VNC WebSocket (`/vnc`)** — выделенный бинарный канал для стриминга
+  экрана. Фреймы передаются как сырые JPEG-байты (без base64), что
+  сокращает трафик на ~33% и снижает CPU-нагрузку. Мышь и клавиатура
+  тоже передаются через этот канал бинарными сообщениями.
 
 Поток данных:
 
 1. **Агент** подключается к `<server>/agent` через Socket.IO. Sеnд'ит
    handshake `{ agentKey, agentId, hostname, platform, osVersion, ... }`
    и каждые 3 сек метрики (CPU, RAM, диск, сеть, GPU).
+   Параллельно агент открывает VNC WebSocket к `<server>/vnc` для
+   бинарного стриминга экрана.
 2. **Сервер** валидирует `agentKey` (`agentAuthMiddleware`),
    сохраняет агента в in-memory map, складывает событие
    `agent_connected` в `store` и пушит его в namespace `/dashboard`.

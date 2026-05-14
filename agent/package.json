@@ -23,7 +23,8 @@
     "node-ssh": "^13.2.1",
     "screenshot-desktop": "^1.15.3",
     "socket.io-client": "^4.8.3",
-    "systeminformation": "^5.31.3"
+    "systeminformation": "^5.31.3",
+    "ws": "^8.20.1"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -49,6 +50,7 @@
       "metrics.js",
       "fileManager.js",
       "screenCapture.js",
+      "vnc.js",
       "systemControl.js",
       "clipboard.js",
       "ui/**/*",

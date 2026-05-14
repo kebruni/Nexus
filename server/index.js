@@ -20,6 +20,7 @@ const notifier = require('./notifier');
 const auth = require('./auth');
 const { startScheduler } = require('./scheduler');
 const orchestrationFactory = require('./lib/orchestration');
+const { attachVncProxy } = require('./vnc-proxy');
 
 // ── App + HTTP + Socket.IO ───────────────────────────────
 const app = express();
@@ -74,6 +75,14 @@ if (HAS_CLIENT_DIST) {
     res.sendFile(path.join(CLIENT_DIST, 'index.html'));
   });
 }
+
+// ── VNC WebSocket proxy (binary screen streaming) ────────
+attachVncProxy(server, {
+  jwtSecret: config.JWT_SECRET,
+  agentSecret: config.AGENT_SECRET,
+  verifyAgentToken: auth.verifyAgentToken,
+  touchAgentToken: auth.touchAgentToken,
+});
 
 // ── Start server ─────────────────────────────────────────
 function listInterfaces() {

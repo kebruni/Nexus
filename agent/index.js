@@ -8,6 +8,7 @@ const { getSystemInfo, collectMetrics } = require('./metrics');
 const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAction, lockScreen, soundAlarm } = require('./systemControl');
 const { listDirectory, readFile, deleteFile } = require('./fileManager');
 const { startStreaming, stopStreaming, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
+const vnc = require('./vnc');
 const { getClipboard, setClipboard } = require('./clipboard');
 const { listProcesses, killProcess } = require('./processManager');
 
@@ -60,6 +61,7 @@ async function main() {
     console.log(`  ✗ Disconnected: ${reason}`);
     stopMetricsCollection();
     stopStreaming();
+    vnc.disconnect();
   });
 
   socket.on('connect_error', (error) => {
@@ -149,15 +151,18 @@ async function main() {
     socket.emit('file:list:result', result); // Trigger a refresh
   });
 
-  // ── Screen Handlers ────────────────────────────────────
+  // ── Screen Handlers (legacy Socket.IO — kept for fallback) ──
+  // VNC WebSocket module handles screen streaming, input, and
+  // monitor listing. These Socket.IO handlers remain as a fallback
+  // for older dashboards that have not upgraded to the VNC viewer.
 
   socket.on('screen:start', ({ quality, fps, monitor }) => {
-    console.log(`  [SCREEN] Start streaming (${fps} FPS, quality ${quality}, monitor ${monitor || 0})`);
+    console.log(`  [SCREEN/fallback] Start streaming (${fps} FPS, quality ${quality}, monitor ${monitor || 0})`);
     startStreaming(socket, fps, quality, monitor || 0);
   });
 
   socket.on('screen:stop', () => {
-    console.log('  [SCREEN] Stop streaming');
+    console.log('  [SCREEN/fallback] Stop streaming');
     stopStreaming();
   });
 
@@ -169,11 +174,13 @@ async function main() {
     simulateKeyboard(key, type);
   });
 
-  // ── Monitor Listing ────────────────────────────────────
   socket.on('screen:getMonitors', async () => {
     const monitors = await listMonitors();
     socket.emit('screen:monitors', { monitors });
   });
+
+  // ── VNC WebSocket (primary screen channel) ─────────────
+  vnc.connect(AGENT_ID, config.AGENT_KEY);
 
   // ── Chat Handler ───────────────────────────────────────
   socket.on('chat:message', ({ text, senderName }) => {
