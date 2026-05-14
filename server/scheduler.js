@@ -31,7 +31,7 @@ const FIELD_BOUNDS = [
 
 function parseField(raw, idx) {
   const { min, max } = FIELD_BOUNDS[idx];
-  const parts = String(raw).split(',');
+  const parts = String(raw).split(',').map((p) => p.trim());
   const set = new Set();
 
   for (const rawPart of parts) {
