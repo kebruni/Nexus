@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { downloadAgentBundle } from '../api/installer';
 
 const API_BASE = '/api';
 
@@ -480,6 +481,19 @@ function InstallBanner({
   t: (key: Parameters<ReturnType<typeof useLanguage>['t']>[0]) => string;
 }) {
   const available = !!installer?.available;
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const handleDownload = async () => {
+    setError(null);
+    setDownloading(true);
+    try {
+      await downloadAgentBundle();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
+    }
+  };
   return (
     <section
       className={`nx-install-banner ${available ? '' : 'is-unavailable'}`}
@@ -531,18 +545,25 @@ function InstallBanner({
       </div>
       <div className="nx-install-banner-actions">
         {available ? (
-          <a
-            href={`${API_BASE}/agent/installer/download`}
-            className="nx-btn is-primary"
-            download
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            className={`nx-btn is-primary${downloading ? ' is-disabled' : ''}`}
+            aria-busy={downloading}
           >
             <Download className="w-4 h-4" />
             {t('home.downloadAgent')}
-          </a>
+          </button>
         ) : (
           <span className="nx-btn is-primary is-disabled" aria-disabled>
             <Download className="w-4 h-4" />
             {t('home.downloadAgent')}
+          </span>
+        )}
+        {error && (
+          <span className="text-[12px] text-[color:var(--danger,#e55)] mt-1">
+            {error}
           </span>
         )}
       </div>
