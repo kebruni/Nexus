@@ -13,7 +13,6 @@ const ComputerDetail = lazy(() => import('./components/ComputerDetail'));
 const EventLog = lazy(() => import('./components/EventLog'));
 const Alerts = lazy(() => import('./components/Alerts'));
 const Analytics = lazy(() => import('./components/Analytics'));
-const FileExplorer = lazy(() => import('./components/FileExplorer'));
 const FileTransfer = lazy(() => import('./components/FileTransfer'));
 const RemoteDesktopPage = lazy(() => import('./components/RemoteDesktopPage'));
 const TerminalPage = lazy(() => import('./components/TerminalPage'));
@@ -112,8 +111,7 @@ function App() {
                 <Route path="devices" element={<Devices />} />
                 <Route path="computer/:id" element={<ComputerDetail />} />
                 <Route path="analytics" element={<Analytics />} />
-                <Route path="files" element={<FileExplorer />} />
-                <Route path="sftp" element={<FileTransfer />} />
+                <Route path="files" element={<FileTransfer />} />
                 <Route path="remote" element={<RemoteDesktopPage />} />
                 <Route path="terminal" element={<TerminalPage />} />
                 <Route path="chat" element={<ChatPage />} />

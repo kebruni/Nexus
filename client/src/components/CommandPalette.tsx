@@ -6,7 +6,7 @@ import {
   FolderOpen,
   TerminalSquare,
   Tv,
-  ArrowLeftRight,
+
   MessageSquare,
   FileCode,
   Activity,
@@ -115,10 +115,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     () => [
       { kind: 'nav', id: 'nav-dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, to: '/dashboard', keywords: 'home main overview' },
       { kind: 'nav', id: 'nav-devices', label: t('nav.devices'), icon: MonitorSmartphone, to: '/dashboard/devices', keywords: 'agents fleet hosts machines' },
-      { kind: 'nav', id: 'nav-files', label: t('nav.fileExplorer'), icon: FolderOpen, to: '/dashboard/files', keywords: 'files browser explorer' },
+      { kind: 'nav', id: 'nav-files', label: t('nav.fileManager'), icon: FolderOpen, to: '/dashboard/files', keywords: 'files browser explorer sftp transfer upload download' },
       { kind: 'nav', id: 'nav-terminal', label: t('nav.terminal'), icon: TerminalSquare, to: '/dashboard/terminal', keywords: 'shell cmd command' },
       { kind: 'nav', id: 'nav-remote', label: t('nav.remoteDesktop'), icon: Tv, to: '/dashboard/remote', keywords: 'screen rdp vnc remote' },
-      { kind: 'nav', id: 'nav-sftp', label: t('nav.sftp'), icon: ArrowLeftRight, to: '/dashboard/sftp', keywords: 'transfer upload download files' },
       { kind: 'nav', id: 'nav-chat', label: t('nav.chat'), icon: MessageSquare, to: '/dashboard/chat', keywords: 'message message conversation' },
       { kind: 'nav', id: 'nav-scripts', label: t('nav.scripts'), icon: FileCode, to: '/dashboard/scripts', keywords: 'script automation runbook' },
       { kind: 'nav', id: 'nav-events', label: t('nav.events'), icon: Activity, to: '/dashboard/events', keywords: 'log events history audit' },

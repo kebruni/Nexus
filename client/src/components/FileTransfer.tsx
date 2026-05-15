@@ -26,6 +26,7 @@ import {
   X,
   UploadCloud,
   Server,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -38,6 +39,14 @@ function formatBytes(bytes: number): string {
   const s = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + s[i];
+}
+
+type SortKey = 'name' | 'modified' | 'size' | 'kind';
+type SortDir = 'asc' | 'desc';
+
+function getFileKind(name: string, isDir: boolean): string {
+  if (isDir) return 'folder';
+  return name.split('.').pop()?.toLowerCase() || 'file';
 }
 
 function getFileIcon(name: string, isDir: boolean, hasError: boolean, size = 'w-4 h-4') {
@@ -83,6 +92,8 @@ export default function FileTransfer() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mkdirInputRef = useRef<HTMLInputElement>(null);
@@ -287,11 +298,39 @@ export default function FileTransfer() {
     }
   };
 
+  const toggleSort = useCallback((field: SortKey) => {
+    setSortKey(prev => {
+      if (prev === field) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return prev;
+      }
+      setSortDir('asc');
+      return field;
+    });
+  }, []);
+
   const filteredFiles = useMemo(() => {
-    if (!searchQuery) return files;
     const q = searchQuery.toLowerCase();
-    return files.filter(f => f.name.toLowerCase().includes(q));
-  }, [files, searchQuery]);
+    const visible = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
+    const dirs = visible.filter(f => f.isDirectory);
+    const regular = visible.filter(f => !f.isDirectory);
+    const compare = (a: FileItem, b: FileItem) => {
+      let r = 0;
+      switch (sortKey) {
+        case 'modified': {
+          const at = a.modified ? new Date(a.modified).getTime() : 0;
+          const bt = b.modified ? new Date(b.modified).getTime() : 0;
+          r = at - bt;
+          break;
+        }
+        case 'size': r = (a.size || 0) - (b.size || 0); break;
+        case 'kind': r = getFileKind(a.name, a.isDirectory).localeCompare(getFileKind(b.name, b.isDirectory)); break;
+        default: r = a.name.localeCompare(b.name);
+      }
+      return sortDir === 'desc' ? -r : r;
+    };
+    return [...dirs.sort(compare), ...regular.sort(compare)];
+  }, [files, searchQuery, sortKey, sortDir]);
 
   const pathSegments = useMemo(() => {
     if (!currentPath) return [];
@@ -316,7 +355,7 @@ export default function FileTransfer() {
     <div className="space-y-4">
       <header className="nx-page-head">
         <div className="nx-page-head-text">
-          <h1 className="nx-page-title">{t('sftp.title') === 'sftp.title' ? 'SFTP' : t('sftp.title')}</h1>
+          <h1 className="nx-page-title">{t('fileManager.title')}</h1>
           <p className="nx-page-sub">{agentId ? `${files.length} items in ${currentPath || '/'}` : `${onlineAgents.length} devices available`}</p>
         </div>
 
@@ -485,10 +524,17 @@ export default function FileTransfer() {
           )}
 
           {/* Table header */}
-          <div className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)] px-4 py-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-zinc-500 bg-zinc-900/50' : 'text-gray-400 bg-gray-50'}`}>
-            <div>Name</div>
-            <div>Modified</div>
-            <div className="text-right">Size</div>
+          <div className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] px-4 py-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-zinc-500 bg-zinc-900/50' : 'text-gray-400 bg-gray-50'}`}>
+            {(['name', 'modified', 'size', 'kind'] as SortKey[]).map(field => (
+              <div
+                key={field}
+                onClick={() => toggleSort(field)}
+                className={`flex items-center gap-1 cursor-pointer select-none transition-colors ${field === 'size' ? 'justify-end' : ''} ${isDark ? 'hover:text-zinc-300' : 'hover:text-gray-700'}`}
+              >
+                {field === 'name' ? 'Name' : field === 'modified' ? 'Modified' : field === 'size' ? 'Size' : 'Kind'}
+                {sortKey === field && <ArrowUpDown className="w-3 h-3 text-blue-400" />}
+              </div>
+            ))}
           </div>
 
           {/* File list */}
@@ -502,7 +548,7 @@ export default function FileTransfer() {
             {!loading && parentPath && parentPath !== currentPath && (
               <div
                 onDoubleClick={() => navigate(parentPath)}
-                className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)] px-4 py-2 items-center text-sm cursor-pointer ${hoverRow}`}
+                className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] px-4 py-2 items-center text-sm cursor-pointer ${hoverRow}`}
               >
                 <div className="flex items-center gap-2">
                   <Folder className="w-4 h-4 text-sky-400" fill="currentColor" fillOpacity={0.15} />
@@ -510,6 +556,7 @@ export default function FileTransfer() {
                 </div>
                 <div className={textMuted}>—</div>
                 <div className={`text-right ${textMuted}`}>—</div>
+                <div className={textMuted}>—</div>
               </div>
             )}
 
@@ -534,7 +581,7 @@ export default function FileTransfer() {
                     if (isRenaming) return;
                     if (f.isDirectory) navigate(f.path);
                   }}
-                  className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)] px-4 py-2 items-center text-sm cursor-pointer transition-colors ${
+                  className={`grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] px-4 py-2 items-center text-sm cursor-pointer transition-colors ${
                     isSelected ? selectedRow : hoverRow
                   }`}
                 >
@@ -560,6 +607,9 @@ export default function FileTransfer() {
                   </div>
                   <div className={`text-xs text-right ${isSelected ? '' : textMuted}`}>
                     {f.isDirectory ? '—' : formatBytes(f.size || 0)}
+                  </div>
+                  <div className={`text-xs ${isSelected ? '' : textMuted}`}>
+                    {getFileKind(f.name, f.isDirectory)}
                   </div>
                 </div>
               );

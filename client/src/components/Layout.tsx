@@ -9,7 +9,6 @@ import {
   FolderOpen,
   TerminalSquare,
   Tv,
-  ArrowLeftRight,
   MessageSquare,
   Menu,
   X,
@@ -65,10 +64,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'nav.tools',
     items: [
       { to: '/dashboard/devices', key: 'nav.devices', icon: MonitorSmartphone },
-      { to: '/dashboard/files', key: 'nav.fileExplorer', icon: FolderOpen },
+      { to: '/dashboard/files', key: 'nav.fileManager', icon: FolderOpen },
       { to: '/dashboard/terminal', key: 'nav.terminal', icon: TerminalSquare },
       { to: '/dashboard/remote', key: 'nav.remoteDesktop', icon: Tv },
-      { to: '/dashboard/sftp', key: 'nav.sftp', icon: ArrowLeftRight },
       { to: '/dashboard/chat', key: 'nav.chat', icon: MessageSquare },
       { to: '/dashboard/scripts', key: 'nav.scripts', icon: FileCode },
       { to: '/dashboard/quick-actions', key: 'nav.quickActions', icon: Zap },
@@ -126,10 +124,9 @@ export default function Layout({ onLogout }: LayoutProps) {
     const path = location.pathname;
     const map: [string, TranslationKey][] = [
       ['/dashboard/devices', 'nav.devices'],
-      ['/dashboard/files', 'nav.fileExplorer'],
+      ['/dashboard/files', 'nav.fileManager'],
       ['/dashboard/terminal', 'nav.terminal'],
       ['/dashboard/remote', 'nav.remoteDesktop'],
-      ['/dashboard/sftp', 'nav.sftp'],
       ['/dashboard/chat', 'nav.chat'],
       ['/dashboard/events', 'nav.events'],
       ['/dashboard/alerts', 'nav.alerts'],

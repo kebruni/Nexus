@@ -6,10 +6,9 @@ export const translations = {
   'nav.dashboard': { en: 'Dashboard', ru: 'Панель', kz: 'Панель' },
   'nav.tools': { en: 'Tools', ru: 'Инструменты', kz: 'Құралдар' },
   'nav.devices': { en: 'Devices', ru: 'Устройства', kz: 'Құрылғылар' },
-  'nav.fileExplorer': { en: 'File Explorer', ru: 'Файлы', kz: 'Файлдар' },
+  'nav.fileManager': { en: 'File Manager', ru: 'Файлы', kz: 'Файлдар' },
   'nav.terminal': { en: 'Terminal', ru: 'Терминал', kz: 'Терминал' },
   'nav.remoteDesktop': { en: 'Remote Desktop', ru: 'Удалённый стол', kz: 'Қашықтағы жұмыс үстелі' },
-  'nav.sftp': { en: 'SFTP', ru: 'SFTP', kz: 'SFTP' },
   'nav.chat': { en: 'Chat', ru: 'Чат', kz: 'Чат' },
   'nav.insights': { en: 'Insights', ru: 'Аналитика', kz: 'Аналитика' },
   'nav.events': { en: 'Events', ru: 'События', kz: 'Оқиғалар' },
@@ -310,8 +309,8 @@ export const translations = {
   'remote.copyLocal': { en: 'Copy Local', ru: 'Копировать локально', kz: 'Жергілікті көшіру' },
   'remote.selectDevice': { en: 'Select a device to connect', ru: 'Выберите устройство для подключения', kz: 'Қосылу үшін құрылғыны таңдаңыз' },
 
-  // ── SFTP ──
-  'sftp.title': { en: 'SFTP File Transfer', ru: 'SFTP Передача файлов', kz: 'SFTP Файл тасымалдау' },
+  // ── File Manager ──
+  'fileManager.title': { en: 'File Manager', ru: 'Файловый менеджер', kz: 'Файл менеджері' },
 
   // ── Chat ──
   'chat.title': { en: 'Chat', ru: 'Чат', kz: 'Чат' },
