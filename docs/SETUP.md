@@ -73,12 +73,6 @@ npm run client:build
      -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3000
    ```
 
-   На Linux:
-
-   ```bash
-   sudo ufw allow 3000/tcp
-   ```
-
 3. Если IP сервера часто меняется — попроси админа сети закрепить
    DHCP-резерв или назначить статический IP. Все агенты будут стучаться
    именно по этому адресу.
@@ -171,34 +165,45 @@ pm2-startup install
 1. На сервере открой `http://<server-ip>:3000`, войди в дашборд.
 2. На главной странице плитка **«Скачать Агент»** даст ссылку на
    `Nexus-Agent-Setup-x.y.z.exe` (~80 МБ). Если плитка пишет «Не собран»
-   — на сервере выполни `npm --prefix agent run build` (нужен Wine
-   на Linux или Windows-машина) либо скачай артефакт с
-   GitHub Actions → workflow *Build Windows agent installer*.
+   — на Windows-машине выполни `npm --prefix agent run build` либо
+   скачай артефакт с GitHub Actions → workflow *Build Agent Installer (Windows)*.
+
+   При сборке `prebuild`-хук (`agent/scripts/bake-installer-defaults.js`)
+   автоматически подписывает агентский JWT секретом `JWT_SECRET` сервера
+   и запекает его в `installerDefaults.json` внутри `.exe`. То есть:
+
+   - **Локально на сервер-машине** — `cd agent && npm run build` сам
+     найдёт `.data/secrets.json` и сделает рабочий установщик. Нулевая
+     настройка.
+   - **В CI (GitHub Actions)** — один раз положи `NEXUS_JWT_SECRET` (значение
+     поля `jwtSecret` из `.data/secrets.json` сервера) в *Settings → Secrets
+     and variables → Actions* репозитория, опционально — `NEXUS_DEFAULT_SERVER_URL`
+     (например `http://192.168.1.50:3000`). Дальше каждый билд автоматически
+     получает рабочий установщик с зашитым токеном.
 3. Скопируй `.exe` на клиентский ПК (USB / общая папка / просто
    `http://<server-ip>:3000/api/agent/installer/download`).
 4. Запусти установщик — он поставит агент в
    `C:\Program Files\Nexus Agent\`, добавит ярлык в Start Menu и
    автозапуск при логине пользователя.
 5. **Первый запуск** агента откроет окно. В подвале есть строка
-   `Server: http://localhost:3000  [edit]`. Нажми **edit** и впиши
+   `Server: <url>  [edit]`. Если при сборке был задан `NEXUS_DEFAULT_SERVER_URL`,
+   там уже будет правильный адрес; иначе нажми **edit** и впиши
    `http://<server-ip>:3000` (тот же IP из баннера сервера). Агент
    сохранит настройку в `%APPDATA%\Nexus Agent\config.json` и сам
    переподключится.
-6. (Только если включён `AGENT_SECRET`-чек, по умолчанию выключен) —
-   также пропиши `AGENT_KEY` через `[edit]` или переменную окружения
-   `AGENT_KEY=...`.
+6. Агентский токен (JWT) обычно уже зашит в установщик — ничего вводить
+   не надо. Если по какой-то причине токен не запёкся (см. лог сборки),
+   пропиши его через `[edit]` или env-переменную `AGENT_KEY=...`.
 7. Через ~5 секунд агент должен появиться в дашборде на странице
    *Devices* со статусом **Online**.
 
-### Вариант B. Запуск из исходников (для разработки / Linux/macOS)
+### Вариант B. Запуск из исходников (для разработки на Windows)
 
 ```powershell
 git clone https://github.com/kebruni/Nexus.git
 cd Nexus
 npm --prefix agent install
-$env:SERVER_URL = "http://192.168.1.50:3000"   # PowerShell
-# либо Linux/macOS:
-# export SERVER_URL=http://192.168.1.50:3000
+$env:SERVER_URL = "http://192.168.1.50:3000"
 npm run agent:dev      # с GUI (Electron)
 # либо
 npm run agent          # console-only
@@ -304,7 +309,7 @@ node agent/index.js --server=http://192.168.1.50:3000 --agent-key=<key>
 | Сервер логает `[Agent Connection Refused] invalid agent key` | На клиенте `AGENT_KEY` не совпадает с `secrets.json` сервера.                                  |
 | Логин циклится через форму смены пароля              | В localStorage браузера остался токен с `mustChangePassword:true`. Открой DevTools → Application → Local Storage → удалить `pc-hub-token`, перелогинься. |
 | После рестарта сервер потерял chat / alerts          | Файл `.data/nexus.db` не записался. Проверь права на папку `.data/` (должна быть доступна на запись пользователю, под которым запущен node). |
-| `[WARN] robot-js not available` в логе агента        | Это нормально на Linux-агенте: remote-input через robot-js работает только на Windows. Все остальные функции (метрики, screen-stream, file ops, terminal) работают.|
+| `[WARN] robot-js not available` в логе агента        | Нативный модуль ввода не загрузился (battles с антивирусами / отсутствуют VC++ Redistributables). Агент автоматически переключается на PowerShell-fallback для мыши/клавиатуры. Метрики, screen-stream, file ops и terminal работают как обычно. |
 
 ---
 

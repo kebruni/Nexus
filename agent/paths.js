@@ -1,11 +1,10 @@
 /**
- * Agent runtime paths.
+ * Agent runtime paths (Windows-only).
  *
  * When the agent is packaged into a Windows installer, `__dirname` lives
  * inside `app.asar` under `Program Files`, which is read-only. All writable
  * runtime data (agent ID, runtime config overrides, future cache files) must
- * therefore live under Electron's `userData` directory (e.g.
- * `%APPDATA%\PC Control Hub Agent\`).
+ * therefore live under Electron's `userData` directory (`%APPDATA%\Nexus Agent\`).
  *
  * This module abstracts that so the rest of the agent code can call
  * `runtimePath(name)` without caring whether it's running packaged, in `dev`,
@@ -21,9 +20,9 @@ let cachedRoot = null;
 function getRuntimeRoot() {
   if (cachedRoot) return cachedRoot;
 
-  // Inside an Electron main process, `electron.app` exists and exposes the
-  // OS-appropriate userData path. Outside Electron (headless `index.js`,
-  // tests, scripts) we fall back to a stable per-user directory.
+  // Inside an Electron main process, `electron.app` exists and exposes
+  // the OS userData path. Outside Electron (headless `index.js`, tests,
+  // scripts) we fall back to a stable per-user directory under %APPDATA%.
   try {
     // Lazy require so this file can be loaded by the headless build too.
     const { app } = require('electron');
@@ -35,11 +34,7 @@ function getRuntimeRoot() {
     // not running under Electron
   }
 
-  const fallback =
-    process.platform === 'win32'
-      ? path.join(process.env.APPDATA || os.homedir(), 'PC Control Hub Agent')
-      : path.join(os.homedir(), '.pc-control-agent');
-  cachedRoot = fallback;
+  cachedRoot = path.join(process.env.APPDATA || os.homedir(), 'PC Control Hub Agent');
   return cachedRoot;
 }
 

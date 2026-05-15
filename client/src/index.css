@@ -2110,7 +2110,7 @@ body {
   border-color: color-mix(in oklab, var(--accent) 50%, transparent);
 }
 
-/* Tag (small label e.g. linux / windows / 1c / 0.9 GB) ----- */
+/* Tag (small label e.g. windows / 1c / 0.9 GB) -------------- */
 .nx-tag {
   display: inline-flex;
   align-items: center;

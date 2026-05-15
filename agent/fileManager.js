@@ -6,18 +6,15 @@ const path = require('path');
  */
 function listDirectory(dirPath) {
   try {
-    const defaultRoot = process.platform === 'win32' ? 'C:\\' : '/';
-    const resolvedPath = path.resolve(dirPath || defaultRoot);
+    const resolvedPath = path.resolve(dirPath || 'C:\\');
     const items = fs.readdirSync(resolvedPath, { withFileTypes: true });
 
+    // Probe drive letters C: .. Z: so the dashboard's file-tree side
+    // panel can render the actual set of attached drives.
     const drives = [];
-    if (process.platform === 'win32') {
-      for (let i = 67; i <= 90; i++) {
-        const drive = String.fromCharCode(i) + ':\\\\';
-        try { fs.accessSync(drive, fs.constants.R_OK); drives.push(String.fromCharCode(i) + ':'); } catch {}
-      }
-    } else {
-      drives.push('/');
+    for (let i = 67; i <= 90; i++) {
+      const drive = String.fromCharCode(i) + ':\\\\';
+      try { fs.accessSync(drive, fs.constants.R_OK); drives.push(String.fromCharCode(i) + ':'); } catch {}
     }
 
     const files = [];

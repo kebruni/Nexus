@@ -4,12 +4,8 @@ let robot;
 try {
   robot = require('robot-js');
 } catch (e) {
-  console.warn('[WARN] robot-js not available, using fallback');
+  console.warn('[WARN] robot-js not available, using PowerShell fallback');
 }
-
-const IS_WIN = process.platform === 'win32';
-const IS_MAC = process.platform === 'darwin';
-const IS_LINUX = process.platform === 'linux';
 
 let streamingInterval = null;
 let displayCache = null;
@@ -103,33 +99,7 @@ function getMousePosition(callback) {
     }
   }
 
-  if (IS_LINUX) {
-    // X11 fallback — xdotool prints "x:1024 y:768 screen:0 window:...".
-    exec('xdotool getmouselocation 2>/dev/null', (err, stdout = '') => {
-      if (err) { callback(0, 0); return; }
-      const m = stdout.match(/x:(\d+)\s+y:(\d+)/);
-      if (!m) { callback(0, 0); return; }
-      callback(parseInt(m[1], 10), parseInt(m[2], 10));
-    });
-    return;
-  }
-
-  if (IS_MAC) {
-    // AppleScript fallback returns "{x, y}".
-    exec(`osascript -e 'tell application "System Events" to return mouse location'`, (err, stdout = '') => {
-      if (err) { callback(0, 0); return; }
-      const m = stdout.match(/(\d+)\s*,\s*(\d+)/);
-      if (!m) { callback(0, 0); return; }
-      callback(parseInt(m[1], 10), parseInt(m[2], 10));
-    });
-    return;
-  }
-
-  if (!IS_WIN) {
-    callback(0, 0);
-    return;
-  }
-
+  // PowerShell + Win32 GetCursorPos fallback.
   const ps = `
 Add-Type -TypeDefinition @"
 using System;

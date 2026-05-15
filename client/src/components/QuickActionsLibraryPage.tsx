@@ -14,7 +14,7 @@ import { useHasRole } from '../hooks/useCurrentUser';
 import EmptyState from './EmptyState';
 
 const API_BASE = '/api';
-const VALID_OS: ReadonlyArray<'all' | 'windows' | 'linux' | 'macos'> = ['all', 'windows', 'linux', 'macos'];
+const VALID_OS: ReadonlyArray<'all' | 'windows'> = ['all', 'windows'];
 const ICON_PRESETS = [
   'Zap', 'Play', 'RefreshCw', 'Trash2', 'Database', 'Wifi', 'Network',
   'ShieldCheck', 'HardDrive', 'Users', 'Power', 'Terminal', 'Settings',

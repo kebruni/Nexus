@@ -115,15 +115,13 @@ function createTray() {
   }
 }
 
-if (process.platform === 'win32') {
-  app.setAppUserModelId(app.name || 'PC Control Hub Agent');
-}
+app.setAppUserModelId(app.name || 'PC Control Hub Agent');
 
-// On Windows, auto-start the agent on user login when installed (so the agent
+// Auto-start the agent on user login when installed (so the agent
 // behaves like a normal background utility — Slack/Discord/etc).
 function enableAutoLaunchOnLogin() {
   try {
-    if (process.platform !== 'win32' || !app.isPackaged) return;
+    if (!app.isPackaged) return;
     app.setLoginItemSettings({
       openAtLogin: true,
       args: ['--hidden'],
@@ -141,9 +139,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    // Keep running in background
-  }
+  // Keep running in the system tray; the agent should behave like a
+  // background utility on Windows.
 });
 
 // ── Агентская логика ──────────────────────────────────
