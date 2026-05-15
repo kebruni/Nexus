@@ -1,0 +1,56 @@
+# Nexus reverse proxy + automatic TLS for nexus.kebruni.me.
+#
+# Caddy fetches a Let's Encrypt certificate on first start, renews it
+# automatically every ~60 days, and transparently proxies WebSocket
+# upgrades (used by Socket.IO for the control plane AND by the RFB/VNC
+# proxy at /agent/vnc and /dashboard/vnc) to the Node server bound to
+# 127.0.0.1:3000.
+#
+# Install Caddy on Debian 12:
+#   sudo apt -y install debian-keyring debian-archive-keyring apt-transport-https
+#   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+#   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+#   sudo apt update && sudo apt -y install caddy
+#
+# Then:
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# DNS prerequisite: an A record for nexus.kebruni.me pointing to this
+# host's public IPv4. ACME-HTTP-01 challenge requires :80 reachable from
+# Let's Encrypt's validation servers.
+
+nexus.kebruni.me {
+	# Caddy handles ACME, HTTP/2, HTTP/3, automatic HTTPS redirect.
+	encode zstd gzip
+
+	# Everything goes to the Node server. Caddy's reverse_proxy auto-
+	# upgrades Connection: upgrade requests (Socket.IO long-poll → ws,
+	# and the raw-WS /agent/vnc and /dashboard/vnc endpoints).
+	reverse_proxy 127.0.0.1:3000 {
+		# Pass the original client IP so server-side rate limiting /
+		# login lockout works correctly (server already has
+		# `app.set('trust proxy', 'loopback')` for this).
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Modest hardening — Nexus serves an admin UI so we want strict
+	# transport security and click-jacking protection.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Allow same-origin framing only; the dashboard never embeds
+		# itself, so this prevents UI redress attacks.
+		X-Frame-Options "SAMEORIGIN"
+	}
+
+	# Log to /var/log/caddy/nexus.kebruni.me.log (rotated by Caddy).
+	log {
+		output file /var/log/caddy/nexus.kebruni.me.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+		format json
+	}
+}
