@@ -1,0 +1,48 @@
+# systemd unit for the Nexus backend.
+#
+# Install:
+#   sudo cp deploy/nexus-server.service /etc/systemd/system/nexus-server.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nexus-server
+#
+# Logs:
+#   journalctl -u nexus-server -f
+#
+# Tweak `User`, `Group`, `WorkingDirectory`, and `ExecStart` to match where
+# you cloned the repo and which UNIX user owns it.
+
+[Unit]
+Description=Nexus remote control hub backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nexus
+Group=nexus
+WorkingDirectory=/opt/nexus
+# Bind to loopback only — TLS termination + public-internet exposure is
+# Caddy's job (see deploy/Caddyfile). The server already trusts
+# X-Forwarded-For from loopback (see server/index.js).
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/nexus/server/index.js
+Restart=on-failure
+RestartSec=5
+
+# Sandboxing — Nexus only needs write access to its own .data/ dir.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/nexus/.data
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

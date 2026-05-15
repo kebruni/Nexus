@@ -25,9 +25,15 @@
  * on disk for the token to authenticate.
  *
  * Resolution order for the default server URL:
- *   1. `NEXUS_DEFAULT_SERVER_URL` env var.
- *   2. omitted (the user can fill it in via the agent's "[edit]" dialog
- *      after installation).
+ *   1. `NEXUS_DEFAULT_SERVER_URL` env var (set this in CI or before a
+ *      manual build to override on a per-build basis).
+ *   2. `DEFAULT_SERVER_URL` constant below — the project's canonical
+ *      production deployment. Anyone forking the repo for their own LAN
+ *      should change this one line.
+ *
+ * The resolved URL is always written to installerDefaults.json so a
+ * freshly-installed agent connects to the right hub without the operator
+ * ever opening the "[edit]" dialog.
  *
  * If neither a JWT secret nor a server URL is available, we still emit
  * `installerDefaults.json` (containing `{}`) so the build proceeds and
@@ -56,6 +62,10 @@ const AGENT_DIR = path.resolve(__dirname, '..');
 const REPO_ROOT = path.resolve(AGENT_DIR, '..');
 const SECRETS_FILE = path.join(REPO_ROOT, '.data', 'secrets.json');
 const OUTPUT_FILE = path.join(AGENT_DIR, 'installerDefaults.json');
+
+// Production hub for this project. If you fork Nexus for your own LAN,
+// change this single line (or override per-build via NEXUS_DEFAULT_SERVER_URL).
+const DEFAULT_SERVER_URL = 'https://nexus.kebruni.me';
 
 function readJwtSecret() {
   const fromEnv = process.env.NEXUS_JWT_SECRET;
@@ -98,10 +108,11 @@ function buildAgentJwt(jwtSecret) {
 function main() {
   const payload = {};
 
-  const serverUrl = (process.env.NEXUS_DEFAULT_SERVER_URL || '').trim();
-  if (serverUrl) {
-    payload.serverUrl = serverUrl;
-  }
+  const envServerUrl = (process.env.NEXUS_DEFAULT_SERVER_URL || '').trim();
+  const serverUrl = envServerUrl || DEFAULT_SERVER_URL;
+  payload.serverUrl = serverUrl;
+  const serverUrlSource = envServerUrl ? 'env (NEXUS_DEFAULT_SERVER_URL)' : 'DEFAULT_SERVER_URL constant';
+  console.log(`[bake-installer-defaults] Default serverUrl = ${serverUrl} (from ${serverUrlSource})`);
 
   const jwtSecretInfo = readJwtSecret();
   if (jwtSecretInfo) {
@@ -117,10 +128,9 @@ function main() {
   fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(payload, null, 2)}\n`, { encoding: 'utf-8' });
 
   const hasKey = Boolean(payload.agentKey);
-  const hasUrl = Boolean(payload.serverUrl);
   console.log(
     `[bake-installer-defaults] Wrote ${path.relative(REPO_ROOT, OUTPUT_FILE)} ` +
-    `(serverUrl: ${hasUrl ? 'set' : 'not set'}, agentKey: ${hasKey ? 'set' : 'not set'})`,
+    `(serverUrl: ${payload.serverUrl}, agentKey: ${hasKey ? 'set' : 'not set'})`,
   );
 }
 

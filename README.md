@@ -6,8 +6,13 @@ Nexus is a three-part remote administration project:
 - `server/` - Express + Socket.IO backend for auth, events, alerts, and routing commands
 - `agent/` - desktop agent that runs on remote machines
 
-> **LAN deployment / production setup:** see [`docs/SETUP.md`](docs/SETUP.md)
-> for a full Russian-language walkthrough — opening firewall ports,
+> **Production deploy on a VPS (Debian 12 + Caddy + automatic TLS):**
+> see [`docs/DEPLOY.md`](docs/DEPLOY.md) — the canonical path for
+> `nexus.kebruni.me`, with systemd unit, Caddyfile and ready-to-cp
+> backup timer.
+>
+> **LAN deployment / dev-only setup:** see [`docs/SETUP.md`](docs/SETUP.md)
+> for the Russian-language walkthrough — opening firewall ports,
 > serving the dashboard from the server itself, hooking agents up by
 > LAN-IP, and the data-flow diagram.
 
