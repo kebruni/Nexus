@@ -13,26 +13,40 @@ Nexus is a three-part remote administration project:
 
 ## Quick start (single machine)
 
-Install dependencies in every workspace:
+Three top-level commands cover the entire workflow:
 
 ```powershell
-npm run install:all
+npm run setup      # 1. install dependencies in root + server + client + agent
+npm run backend    # 2. start Express + Socket.IO on 0.0.0.0:3000
+npm run frontend   # 3. build the Windows agent .exe, then start the Vite dev server
 ```
+
+`npm run frontend` runs `npm --prefix agent run build` first — the prebuild
+hook (`agent/scripts/bake-installer-defaults.js`) signs an agent JWT with
+`JWT_SECRET` and bakes it into `Nexus-Agent-Setup-*.exe`, so the installer
+that lands in `agent/dist-gui/` works out of the box on any Windows host
+that can reach the server. After the `.exe` is ready, Vite starts the
+dashboard dev server on `http://localhost:5173` with an `/api` proxy to
+the backend.
+
+> Building the `.exe` requires running on Windows — `electron-builder`
+> uses native Windows tooling (no Wine support is shipped here, since
+> the project is Windows-only).
 
 ### Production-style: server alone serves the dashboard
 
 ```powershell
 npm run client:build      # produces client/dist/
-npm run server:start      # listens on 0.0.0.0:3000, serves /api + dashboard at /
+npm run backend           # listens on 0.0.0.0:3000, serves /api + dashboard at /
 ```
 
 Open `http://localhost:3000` (or `http://<your-LAN-IP>:3000` from another
 machine on the same network — the server prints the LAN URLs at boot).
 
-### Dev mode (hot-reloading dashboard, two terminals)
+### Dev mode without rebuilding the agent (faster inner loop)
 
 ```powershell
-npm run server      # backend on :3000
+npm run backend     # backend on :3000
 npm run client      # Vite dev server on :5173 with /api proxy
 ```
 

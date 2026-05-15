@@ -5,6 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "setup": "npm install && npm --prefix server install && npm --prefix client install && npm --prefix agent install",
+    "backend": "npm --prefix server run start",
+    "frontend": "npm --prefix agent run build && npm --prefix client run dev",
     "server": "npm --prefix server run dev",
     "server:start": "npm --prefix server run start",
     "client": "npm --prefix client run dev",
@@ -12,10 +15,11 @@
     "client:lint": "npm --prefix client run lint",
     "agent": "npm --prefix agent run start",
     "agent:dev": "npm --prefix agent run dev",
-    "install:all": "npm install && npm --prefix server install && npm --prefix client install && npm --prefix agent install",
+    "agent:build": "npm --prefix agent run build",
+    "install:all": "npm run setup",
     "build": "npm --prefix client run build",
     "start": "npm --prefix client run build && npm --prefix server run start",
-    "dev": "echo Run `npm run server` and `npm run client` in separate terminals",
+    "dev": "echo Run `npm run backend` and `npm run frontend` in separate terminals",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
