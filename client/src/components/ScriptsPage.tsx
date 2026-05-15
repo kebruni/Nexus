@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSocket } from '../api/socket';
 import type { Agent } from '../types';
-import { Plus, Play, Trash2, FileCode, Terminal } from 'lucide-react';
+import { Plus, Play, Trash2, FileCode, Terminal, Code } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -101,8 +101,16 @@ export default function ScriptsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>{t('scripts.title')}</h2>
+          <div className="flex items-center gap-2">
+            <Code className={`w-5 h-5 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
+            <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} tracking-tight`}>{t('scripts.title')}</h2>
+          </div>
           <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-gray-500'} mt-1`}>{t('scripts.subtitle')}</p>
+          <div className={`mt-2 flex items-center gap-2 text-xs ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-blue-50 text-blue-600 border border-blue-200'}`}>Multi-line code</span>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>Output view</span>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>Reusable</span>
+          </div>
         </div>
         {canRun && (
           <button

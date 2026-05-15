@@ -163,8 +163,16 @@ export default function QuickActionsLibraryPage() {
     <div className="space-y-4">
       <header className="nx-page-head">
         <div className="nx-page-head-text">
-          <h1 className="nx-page-title">{t('quickActions.libraryTitle')}</h1>
+          <div className="flex items-center gap-2">
+            <Zap className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} />
+            <h1 className="nx-page-title">{t('quickActions.libraryTitle')}</h1>
+          </div>
           <p className="nx-page-sub">{t('quickActions.librarySubtitle')}</p>
+          <div className={`mt-2 flex items-center gap-2 text-xs`}>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>One-click</span>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'bg-sky-50 text-sky-600 border border-sky-200'}`}>Agent buttons</span>
+            <span className={`px-2 py-0.5 rounded-full ${isDark ? 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Single command</span>
+          </div>
         </div>
         {canEdit && (
           <button type="button" onClick={startCreate} className="nx-btn is-primary">
