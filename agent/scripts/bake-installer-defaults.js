@@ -13,7 +13,8 @@
  * secrets, etc. Building the installer should just work.
  *
  * Resolution order for the JWT signing secret:
- *   1. `NEXUS_JWT_SECRET` env var (used by CI).
+ *   1. `NEXUS_JWT_SECRET` env var (kept for parity with older local
+ *      builds; CI no longer supplies it).
  *   2. `<repoRoot>/.data/secrets.json::jwtSecret` (auto-discovered when
  *      the build is run on the same machine as the server — the common
  *      LAN deployment per docs/SETUP.md).
@@ -23,6 +24,12 @@
  * `agentKey` in installerDefaults.json. The server's `verifyAgentToken`
  * verifies it cryptographically — no per-agent record needs to exist
  * on disk for the token to authenticate.
+ *
+ * When NO signing secret is available (the default in CI now), the
+ * installer is built WITHOUT a baked agent JWT. End-users obtain a
+ * paired bundle (.exe + install.cmd with a freshly-signed agent JWT)
+ * from the dashboard's Download Agent button, which hits
+ * `/api/agent/installer/bundle`. JWT_SECRET stays on the host.
  *
  * Resolution order for the default server URL:
  *   1. `NEXUS_DEFAULT_SERVER_URL` env var (set this in CI or before a
@@ -121,7 +128,8 @@ function main() {
   } else {
     console.log(
       '[bake-installer-defaults] No JWT_SECRET available — installer will ship without a pre-baked agent token. ' +
-      'Set NEXUS_JWT_SECRET (CI) or run from the server machine (auto-reads .data/secrets.json) for fully-automatic builds.',
+      'This is the expected default for CI builds: end-users pair via the dashboard\'s ' +
+      '"Download Agent" button, which serves a bundle (exe + install.cmd) with a host-signed JWT.',
     );
   }
 

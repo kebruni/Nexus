@@ -12,6 +12,7 @@ import {
   Download,
 } from 'lucide-react';
 import { getSocket } from '../api/socket';
+import { downloadAgentBundle } from '../api/installer';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { Agent } from '../types';
 
@@ -250,14 +251,18 @@ export default function Devices() {
                         <h3 className="nx-empty-rich-title">{t('devices.firstRunTitle')}</h3>
                         <p className="nx-empty-rich-desc">{t('devices.firstRunDesc')}</p>
                         <div className="nx-empty-rich-actions">
-                          <a
-                            href={`${API_BASE}/agent/installer/download`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              downloadAgentBundle().catch((err) => {
+                                console.error('[Devices] downloadAgentBundle failed:', err);
+                              });
+                            }}
                             className="nx-btn is-primary"
-                            download
                           >
                             <Download className="w-4 h-4" />
                             {t('devices.downloadCta')}
-                          </a>
+                          </button>
                         </div>
                       </div>
                     </div>

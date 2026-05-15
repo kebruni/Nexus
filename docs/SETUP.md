@@ -162,40 +162,41 @@ pm2-startup install
 
 ### Вариант A. Установщик `.exe` (рекомендованный для Win 10/11)
 
-1. На сервере открой `http://<server-ip>:3000`, войди в дашборд.
-2. На главной странице плитка **«Скачать Агент»** даст ссылку на
-   `Nexus-Agent-Setup-x.y.z.exe` (~80 МБ). Если плитка пишет «Не собран»
+1. На сервере открой `http://<server-ip>:3000`, войди в дашборд
+   admin'ом (или любым другим admin-пользователем — эндпоинт скачивания
+   требует роль admin).
+2. На главной странице плитка **«Скачать Агент»** скачает
+   `Nexus-Agent-Bundle.zip` (~80 МБ). Если плитка пишет «Installer building»
    — на Windows-машине выполни `npm --prefix agent run build` либо
-   скачай артефакт с GitHub Actions → workflow *Build Agent Installer (Windows)*.
+   скачай артефакт с GitHub Actions → workflow *Build Agent Installer (Windows)*,
+   и положи `Nexus-Agent-Setup-*.exe` в `agent/dist-gui/` на серверной
+   машине.
 
-   При сборке `prebuild`-хук (`agent/scripts/bake-installer-defaults.js`)
-   автоматически подписывает агентский JWT секретом `JWT_SECRET` сервера
-   и запекает его в `installerDefaults.json` внутри `.exe`. То есть:
+   При сборке .exe `prebuild`-хук
+   (`agent/scripts/bake-installer-defaults.js`) запекает в бинарник
+   только `serverUrl` (из `NEXUS_DEFAULT_SERVER_URL` или дефолта в скрипте).
+   Агентский JWT в сам бинарник больше не попадает — его
+   подписывает сам сервер в момент скачивания и кладёт
+   в `install.cmd` внутри ZIP-бандла. Секрет никогда не покидает хост.
 
-   - **Локально на сервер-машине** — `cd agent && npm run build` сам
-     найдёт `.data/secrets.json` и сделает рабочий установщик. Нулевая
-     настройка.
-   - **В CI (GitHub Actions)** — один раз положи `NEXUS_JWT_SECRET` (значение
-     поля `jwtSecret` из `.data/secrets.json` сервера) в *Settings → Secrets
-     and variables → Actions* репозитория, опционально — `NEXUS_DEFAULT_SERVER_URL`
-     (например `http://192.168.1.50:3000`). Дальше каждый билд автоматически
-     получает рабочий установщик с зашитым токеном.
-3. Скопируй `.exe` на клиентский ПК (USB / общая папка / просто
-   `http://<server-ip>:3000/api/agent/installer/download`).
-4. Запусти установщик — он поставит агент в
-   `C:\Program Files\Nexus Agent\`, добавит ярлык в Start Menu и
+   в результате:
+   - **Собирать .exe можно на любой машине** — доступа к
+     `.data/secrets.json` больше не требуется.
+   - **В CI (GitHub Actions)** — достаточно опционально положить
+     `NEXUS_DEFAULT_SERVER_URL` (например `http://192.168.1.50:3000`)
+     в *Settings → Secrets and variables → Actions*. `NEXUS_JWT_SECRET`
+     больше **не нужен** и его следует удалить.
+3. Скопируй `Nexus-Agent-Bundle.zip` на клиентский ПК (USB / общая
+   папка), распакуй, запусти `install.cmd` двойным кликом. Скрипт
+   пишет `%APPDATA%\Nexus Agent\config.json` и запускает мастер
+   установки `Nexus-Agent-Setup.exe`. Агент ставится в
+   `C:\Program Files\Nexus Agent\`, добавляется ярлык в Start Menu и
    автозапуск при логине пользователя.
-5. **Первый запуск** агента откроет окно. В подвале есть строка
-   `Server: <url>  [edit]`. Если при сборке был задан `NEXUS_DEFAULT_SERVER_URL`,
-   там уже будет правильный адрес; иначе нажми **edit** и впиши
-   `http://<server-ip>:3000` (тот же IP из баннера сервера). Агент
-   сохранит настройку в `%APPDATA%\Nexus Agent\config.json` и сам
-   переподключится.
-6. Агентский токен (JWT) обычно уже зашит в установщик — ничего вводить
-   не надо. Если по какой-то причине токен не запёкся (см. лог сборки),
-   пропиши его через `[edit]` или env-переменную `AGENT_KEY=...`.
-7. Через ~5 секунд агент должен появиться в дашборде на странице
-   *Devices* со статусом **Online**.
+4. Агент читает `config.json` на первом запуске и сразу подключается
+   к `serverUrl` со своим JWT. Через ~5 секунд он появляется в
+   дашборде на странице *Devices* со статусом **Online**.
+5. Если нужно вручную поменять адрес или токен — в GUI-окне
+   агента в подвале есть строка `Server: <url>  [edit]`.
 
 ### Вариант B. Запуск из исходников (для разработки на Windows)
 
