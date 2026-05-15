@@ -1,19 +1,17 @@
 /** /api/quick-actions/* — admin-managed library of one-click commands.
  *
  *  Distinct from /api/scripts (which is the long-form user script
- *  library). Quick actions are short OS-specific commands shown as
- *  buttons on the agent detail page.
+ *  library). Quick actions are short Windows commands shown as buttons
+ *  on the agent detail page.
  *
  *  - GET available to any authenticated user.
  *  - Mutations require operator+ (admin can also restrict via UI).
  */
-const VALID_OS = ['windows', 'linux', 'macos', 'all'];
+const VALID_OS = ['windows', 'all'];
 
 function detectAgentOs(agent) {
   const raw = String(agent?.platform || '').toLowerCase();
   if (raw.includes('win')) return 'windows';
-  if (raw.includes('darwin') || raw.includes('mac')) return 'macos';
-  if (raw.includes('linux')) return 'linux';
   return null;
 }
 

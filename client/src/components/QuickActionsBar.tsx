@@ -24,21 +24,19 @@ interface QuickAction {
   name: string;
   description: string | null;
   command: string;
-  os: 'windows' | 'linux' | 'macos' | 'all';
+  os: 'windows' | 'all';
   icon: string | null;
 }
 
 interface Props {
   agentId: string;
-  agentOs?: string; // 'win32' | 'linux' | 'darwin' from agent metrics
+  agentOs?: string; // 'win32' from agent metrics
 }
 
 function osMatches(actionOs: string, agentOs?: string): boolean {
   if (actionOs === 'all') return true;
   if (!agentOs) return true; // unknown — show all
   if (actionOs === 'windows') return agentOs.startsWith('win');
-  if (actionOs === 'macos') return agentOs === 'darwin';
-  if (actionOs === 'linux') return agentOs === 'linux';
   return true;
 }
 

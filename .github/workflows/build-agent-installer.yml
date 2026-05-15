@@ -45,32 +45,26 @@ jobs:
           node --check paths.js
           node --check runtimeConfig.js
           node --check installerDefaults.js
+          node --check scripts/bake-installer-defaults.js
 
-      - name: Bake installer defaults
-        working-directory: agent
-        shell: pwsh
-        env:
-          NEXUS_DEFAULT_SERVER_URL: ${{ secrets.NEXUS_DEFAULT_SERVER_URL }}
-          NEXUS_DEFAULT_AGENT_KEY: ${{ secrets.NEXUS_DEFAULT_AGENT_KEY }}
-        run: |
-          $serverUrl = $env:NEXUS_DEFAULT_SERVER_URL
-          $agentKey  = $env:NEXUS_DEFAULT_AGENT_KEY
-          if ([string]::IsNullOrWhiteSpace($serverUrl) -and [string]::IsNullOrWhiteSpace($agentKey)) {
-            Write-Host "No NEXUS_DEFAULT_* secrets — building generic installer (config will be empty)"
-            '{}' | Out-File -FilePath installerDefaults.json -Encoding utf8
-          } else {
-            $payload = @{}
-            if (-not [string]::IsNullOrWhiteSpace($serverUrl)) { $payload.serverUrl = $serverUrl }
-            if (-not [string]::IsNullOrWhiteSpace($agentKey))  { $payload.agentKey  = $agentKey }
-            $payload | ConvertTo-Json -Depth 3 | Out-File -FilePath installerDefaults.json -Encoding utf8
-            Write-Host "Baked installer defaults (serverUrl present: $(-not [string]::IsNullOrWhiteSpace($serverUrl)), agentKey present: $(-not [string]::IsNullOrWhiteSpace($agentKey)))"
-          }
-
+      # The actual installerDefaults.json is generated automatically by the
+      # `prebuild` npm hook (agent/scripts/bake-installer-defaults.js). It
+      # reads the env vars below and mints a JWT-flavoured agent token using
+      # NEXUS_JWT_SECRET, so the resulting .exe ships with a working token
+      # out of the box — no manual "issue token in UI, copy into GitHub
+      # secrets" dance required after the initial NEXUS_JWT_SECRET setup.
       - name: Build NSIS installer
         working-directory: agent
         env:
           # Avoid hitting GitHub release publishing
           GH_TOKEN: ''
+          # Optional — when set, the build bakes a default server URL into
+          # the .exe so end-users don't have to type it in.
+          NEXUS_DEFAULT_SERVER_URL: ${{ secrets.NEXUS_DEFAULT_SERVER_URL }}
+          # Optional — when set to the server's JWT_SECRET (taken from the
+          # server's .data/secrets.json), prebuild signs a long-lived agent
+          # JWT and bakes it into the installer.
+          NEXUS_JWT_SECRET: ${{ secrets.NEXUS_JWT_SECRET }}
         run: npm run build
 
       - name: List build artifacts

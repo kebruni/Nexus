@@ -234,7 +234,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
     ctx.shadowBlur = 6 * scale;
 
-    // Standard arrow-cursor shape (Windows/macOS-style).
+    // Standard arrow-cursor shape.
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + 14 * scale, y + 14 * scale);

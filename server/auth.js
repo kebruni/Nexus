@@ -54,13 +54,22 @@ config.JWT_SECRET = JWT_SECRET;
 config.AGENT_SECRET = AGENT_SECRET;
 
 // ── Per-agent tokens ──────────────────────────────────────
-// secrets.agentTokens: { [tokenId]: { hash, label, createdBy, createdAt, lastUsedAt, revokedAt } }
+// Two flavours of agent token are accepted by `verifyAgentToken`:
 //
-// Tokens are random, stored hashed (sha256), shown to admins only at creation.
-// Wire format: "nxa_<id>_<secret>" so we can identify a token quickly without
-// scanning the whole table. Replaces the shared AGENT_SECRET on a per-agent
-// basis — the legacy shared secret still works for agents that haven't been
-// migrated to a per-agent token yet.
+//  1. "nxa_<id>_<secret>" — admin-issued per-agent tokens. Stored hashed in
+//     secrets.agentTokens, listable / revocable via the admin UI.
+//     secrets.agentTokens shape:
+//       { [tokenId]: { hash, label, createdBy, createdAt, lastUsedAt, revokedAt } }
+//
+//  2. JWT signed with JWT_SECRET, claim `{ type: 'agent', agentId, label }`.
+//     Used by the build pipeline (`agent/scripts/bake-installer-defaults.js`)
+//     to mint zero-config tokens that the `.exe` installer ships with.
+//     Verification is pure crypto — nothing has to be registered on disk,
+//     which means CI can produce fully-working installers without first
+//     calling an API on the server.
+//
+// Both replace the legacy shared AGENT_SECRET, which is still accepted in
+// `agentAuthMiddleware` for backwards compat.
 if (!secrets.agentTokens || typeof secrets.agentTokens !== 'object') {
   secrets.agentTokens = {};
   persistence.saveSecrets(secrets);
@@ -87,21 +96,42 @@ function issueAgentToken(label, createdBy) {
 }
 
 function verifyAgentToken(plainToken) {
-  if (!plainToken || typeof plainToken !== 'string' || !plainToken.startsWith('nxa_')) {
-    return null;
+  if (!plainToken || typeof plainToken !== 'string') return null;
+
+  // Admin-issued per-agent tokens — "nxa_<id>_<secret>".
+  if (plainToken.startsWith('nxa_')) {
+    const parts = plainToken.split('_');
+    if (parts.length < 3) return null;
+    const id = parts[1];
+    const entry = secrets.agentTokens[id];
+    if (!entry) return null;
+    if (entry.revokedAt) return null;
+    const want = _hashToken(plainToken);
+    // Constant-time comparison to avoid timing leaks.
+    const a = Buffer.from(want, 'hex');
+    const b = Buffer.from(entry.hash, 'hex');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    return { id, label: entry.label, kind: 'nxa' };
   }
-  const parts = plainToken.split('_');
-  if (parts.length < 3) return null;
-  const id = parts[1];
-  const entry = secrets.agentTokens[id];
-  if (!entry) return null;
-  if (entry.revokedAt) return null;
-  const want = _hashToken(plainToken);
-  // Constant-time comparison to avoid timing leaks.
-  const a = Buffer.from(want, 'hex');
-  const b = Buffer.from(entry.hash, 'hex');
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  return { id, label: entry.label };
+
+  // Build-pipeline JWTs — signed with JWT_SECRET by
+  // agent/scripts/bake-installer-defaults.js. Looks like "eyJ...".
+  if (plainToken.split('.').length === 3) {
+    try {
+      const decoded = jwt.verify(plainToken, JWT_SECRET, { algorithms: ['HS256'] });
+      if (decoded && decoded.type === 'agent') {
+        return {
+          id: String(decoded.agentId || `jwt-${decoded.iat || 'unknown'}`),
+          label: String(decoded.label || 'JWT-baked agent'),
+          kind: 'jwt',
+        };
+      }
+    } catch (_) {
+      // fall through to null
+    }
+  }
+
+  return null;
 }
 
 function touchAgentToken(id) {
@@ -594,12 +624,16 @@ function agentAuthMiddleware(socket, next) {
   const agentKey = socket.handshake.auth.agentKey;
   if (!agentKey) return next(new Error('Authentication required'));
 
-  // Per-agent token (preferred). Format: nxa_<id>_<secret>.
-  if (typeof agentKey === 'string' && agentKey.startsWith('nxa_')) {
+  // Try the per-agent / build-JWT paths first. Both go through
+  // `verifyAgentToken`, which understands the wire format.
+  if (typeof agentKey === 'string' &&
+      (agentKey.startsWith('nxa_') || agentKey.split('.').length === 3)) {
     const verified = verifyAgentToken(agentKey);
     if (verified) {
       socket.agentToken = verified;
-      touchAgentToken(verified.id);
+      // Only "nxa_*" tokens have a persisted record we can timestamp;
+      // JWT-baked tokens are stateless so there is nothing to touch.
+      if (verified.kind === 'nxa') touchAgentToken(verified.id);
       return next();
     }
     return next(new Error('Invalid or revoked agent token'));
