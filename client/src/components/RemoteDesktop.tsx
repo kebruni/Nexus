@@ -99,6 +99,22 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
     });
   }, []);
 
+  const handleLegacyFrame = useCallback((imageBase64: string) => {
+    if (!imageBase64) return;
+    frameTimesRef.current.push(Date.now());
+    const img = new Image();
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+      imgRef.current = img;
+    };
+    img.src = `data:image/jpeg;base64,${imageBase64}`;
+  }, []);
+
   const handleVncCursor = useCallback((x: number, y: number) => {
     targetCursorRef.current = { x, y };
   }, []);
@@ -271,17 +287,38 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
       setClipboardText(data.text);
     };
 
+    const handleLegacyScreenFrame = (data: { agentId: string; image?: string }) => {
+      if (data.agentId !== agentId) return;
+      handleLegacyFrame(data.image || '');
+    };
+
+    const handleLegacyCursor = (data: { agentId: string; x: number; y: number }) => {
+      if (data.agentId !== agentId) return;
+      targetCursorRef.current = { x: data.x, y: data.y };
+    };
+
+    const handleLegacyMonitors = (data: { agentId: string; monitors: MonitorInfo[] }) => {
+      if (data.agentId !== agentId) return;
+      setMonitors(data.monitors || []);
+    };
+
     socket.on('agent:latency', handleLatency);
     socket.on('clipboard:data', handleClipboard);
+    socket.on('screen:frame', handleLegacyScreenFrame);
+    socket.on('screen:cursor', handleLegacyCursor);
+    socket.on('screen:monitors', handleLegacyMonitors);
 
-    // Request monitor list via VNC
     vnc.getMonitors();
+    socket.emit('screen:getMonitors', { agentId });
 
     return () => {
       socket.off('agent:latency', handleLatency);
       socket.off('clipboard:data', handleClipboard);
+      socket.off('screen:frame', handleLegacyScreenFrame);
+      socket.off('screen:cursor', handleLegacyCursor);
+      socket.off('screen:monitors', handleLegacyMonitors);
     };
-  }, [agentId, vnc]);
+  }, [agentId, handleLegacyFrame, vnc]);
 
   // Render loop for smooth cursor interpolation and constant FPS drawing
   useEffect(() => {
@@ -335,7 +372,12 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   }, [streaming, smoothCursor, showRemoteCursor, showAdminCursor, inputEnabled]);
 
   const startStreaming = () => {
-    vnc.startStream(fps, quality, selectedMonitor);
+    if (vnc.connected && vnc.agentOnline) {
+      vnc.startStream(fps, quality, selectedMonitor);
+    } else {
+      const socket = getSocket();
+      socket?.emit('screen:start', { agentId, fps, quality, monitor: selectedMonitor });
+    }
     setStreaming(true);
     targetCursorRef.current = { x: 0, y: 0 };
     currentCursorRef.current = { x: 0, y: 0 };
@@ -344,13 +386,20 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
 
   const stopStreaming = () => {
     vnc.stopStream();
+    const socket = getSocket();
+    socket?.emit('screen:stop', { agentId });
     setStreaming(false);
     targetCursorRef.current = { x: 0, y: 0 };
     currentCursorRef.current = { x: 0, y: 0 };
   };
 
   const emitMouseEvent = (x: number, y: number, type: 'move' | 'click' | 'dblclick' | 'wheel', button: 'left' | 'right' | 'scroll' = 'left', wheel?: number) => {
-    vnc.sendMouse(x, y, type, button, wheel || 0);
+    if (vnc.connected && vnc.agentOnline) {
+      vnc.sendMouse(x, y, type, button, wheel || 0);
+    } else {
+      const socket = getSocket();
+      socket?.emit('screen:mouse', { agentId, x, y, type, button, wheel: wheel || 0 });
+    }
   };
 
   const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.WheelEvent<HTMLCanvasElement>) => {
@@ -448,12 +497,22 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!inputEnabled || !streaming) return;
     e.preventDefault();
-    vnc.sendKeyboard(e.key, 'press');
+    if (vnc.connected && vnc.agentOnline) {
+      vnc.sendKeyboard(e.key, 'press');
+    } else {
+      const socket = getSocket();
+      socket?.emit('screen:keyboard', { agentId, key: e.key, type: 'press' });
+    }
   };
 
   const sendSpecialKey = (key: string) => {
     if (!inputEnabled || !streaming) return;
-    vnc.sendKeyboard(key, 'press');
+    if (vnc.connected && vnc.agentOnline) {
+      vnc.sendKeyboard(key, 'press');
+    } else {
+      const socket = getSocket();
+      socket?.emit('screen:keyboard', { agentId, key, type: 'press' });
+    }
     screenAreaRef.current?.focus();
   };
 

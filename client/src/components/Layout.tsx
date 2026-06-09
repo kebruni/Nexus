@@ -308,7 +308,7 @@ export default function Layout({ onLogout }: LayoutProps) {
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="nx-search-trigger hidden md:inline-flex"
+            className="hidden"
             title={t('cmdk.openHint')}
             aria-label={t('cmdk.openHint')}
           >
@@ -318,16 +318,6 @@ export default function Layout({ onLogout }: LayoutProps) {
               <kbd className="nx-kbd">⌘</kbd>
               <kbd className="nx-kbd">K</kbd>
             </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            className="nx-btn nx-btn-icon nx-btn-sm md:hidden"
-            title={t('cmdk.openHint')}
-            aria-label={t('cmdk.openHint')}
-          >
-            <Search className="w-4 h-4" />
           </button>
 
           <div className="nx-chip hidden lg:inline-flex" title={t('layout.connectedAgents')}>

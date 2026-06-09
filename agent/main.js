@@ -10,6 +10,7 @@ const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAc
 const { listDirectory, readFile, deleteFile } = require('./fileManager');
 const { startStreaming, stopStreaming, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
 const { getClipboard, setClipboard } = require('./clipboard');
+const vnc = require('./vnc');
 const notifier = require('node-notifier');
 
 let mainWindow;
@@ -68,7 +69,7 @@ function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
-  mainWindow.loadFile('ui/index.html');
+  mainWindow.loadFile(path.join(__dirname, 'ui', 'index.html'));
   
   // mainWindow.webContents.openDevTools(); 
 
@@ -185,6 +186,7 @@ async function startAgentLogic() {
     console.log('[AGENT] Connected to server!');
     updateUI('status', { online: true, server: config.SERVER_URL });
     startMetricsCollection();
+    vnc.connect(AGENT_ID, config.AGENT_KEY, config.SERVER_URL);
   });
 
   socket.on('connect_error', (err) => {
@@ -195,6 +197,7 @@ async function startAgentLogic() {
   socket.on('disconnect', () => {
     updateUI('status', { online: false });
     stopMetricsCollection();
+    vnc.disconnect();
   });
 
   socket.on('chat:message', ({ text, senderName }) => {
@@ -380,6 +383,7 @@ function reloadConnection() {
       socket.disconnect();
       socket = null;
     }
+    vnc.disconnect();
     stopMetricsCollection();
   } catch (err) {
     console.error('[AGENT] reloadConnection teardown error:', err.message);

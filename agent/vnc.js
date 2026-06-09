@@ -54,15 +54,15 @@ const TARGET_SEND_TIME = 200;
 /**
  * Connect to the VNC WebSocket endpoint on the Nexus server.
  */
-function connect(agentId, agentKey) {
+function connect(agentId, agentKey, serverHttpUrl = config.SERVER_URL) {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
-  const serverUrl = config.SERVER_URL.replace(/^http/, 'ws');
+  const serverUrl = serverHttpUrl.replace(/^http/, 'ws');
   const vncUrl = `${serverUrl}/vnc?role=agent&agentId=${encodeURIComponent(agentId)}&agentKey=${encodeURIComponent(agentKey)}`;
 
-  console.log(`  [VNC] Connecting to ${config.SERVER_URL}/vnc ...`);
+  console.log(`  [VNC] Connecting to ${serverHttpUrl}/vnc ...`);
 
   ws = new WebSocket(vncUrl, {
     perMessageDeflate: false,
@@ -70,6 +70,7 @@ function connect(agentId, agentKey) {
   });
 
   ws.binaryType = 'nodebuffer';
+  const socket = ws;
 
   ws.on('open', () => {
     console.log('  [VNC] WebSocket connected');
@@ -87,7 +88,10 @@ function connect(agentId, agentKey) {
   ws.on('close', () => {
     console.log('  [VNC] WebSocket closed');
     stopStream();
-    scheduleReconnect(agentId, agentKey);
+    if (socket.manualClose) {
+      return;
+    }
+    scheduleReconnect(agentId, agentKey, serverHttpUrl);
   });
 
   ws.on('error', (err) => {
@@ -95,11 +99,11 @@ function connect(agentId, agentKey) {
   });
 }
 
-function scheduleReconnect(agentId, agentKey) {
+function scheduleReconnect(agentId, agentKey, serverHttpUrl) {
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    connect(agentId, agentKey);
+    connect(agentId, agentKey, serverHttpUrl);
   }, 5000);
 }
 
@@ -296,6 +300,7 @@ function disconnect() {
     reconnectTimer = null;
   }
   if (ws) {
+    ws.manualClose = true;
     ws.close();
     ws = null;
   }
