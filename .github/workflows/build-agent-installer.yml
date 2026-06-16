@@ -49,10 +49,11 @@ jobs:
 
       # The actual installerDefaults.json is generated automatically by the
       # `prebuild` npm hook (agent/scripts/bake-installer-defaults.js). It
-      # reads the env vars below and mints a JWT-flavoured agent token using
-      # NEXUS_JWT_SECRET, so the resulting .exe ships with a working token
-      # out of the box — no manual "issue token in UI, copy into GitHub
-      # secrets" dance required after the initial NEXUS_JWT_SECRET setup.
+      # bakes only the default server URL into the .exe; the agent JWT is
+      # NOT baked at CI time anymore — the server itself signs and ships
+      # the agent JWT alongside the .exe through
+      # `/api/agent/installer/bundle`. This keeps JWT_SECRET on the host
+      # only and means no NEXUS_JWT_SECRET GitHub secret is required.
       - name: Build NSIS installer
         working-directory: agent
         env:
@@ -61,10 +62,6 @@ jobs:
           # Optional — when set, the build bakes a default server URL into
           # the .exe so end-users don't have to type it in.
           NEXUS_DEFAULT_SERVER_URL: ${{ secrets.NEXUS_DEFAULT_SERVER_URL }}
-          # Optional — when set to the server's JWT_SECRET (taken from the
-          # server's .data/secrets.json), prebuild signs a long-lived agent
-          # JWT and bakes it into the installer.
-          NEXUS_JWT_SECRET: ${{ secrets.NEXUS_JWT_SECRET }}
         run: npm run build
 
       - name: List build artifacts
