@@ -65,7 +65,7 @@ const OUTPUT_FILE = path.join(AGENT_DIR, 'installerDefaults.json');
 
 // Production hub for this project. If you fork Nexus for your own LAN,
 // change this single line (or override per-build via NEXUS_DEFAULT_SERVER_URL).
-const DEFAULT_SERVER_URL = 'https://nexus.kebruni.me';
+const DEFAULT_SERVER_URL = 'http://192.168.0.11:3000';
 
 function readJwtSecret() {
   const fromEnv = process.env.NEXUS_JWT_SECRET;

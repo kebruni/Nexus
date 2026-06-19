@@ -11,7 +11,7 @@ function findArtifact() {
   try {
     const entries = fs.readdirSync(distDir);
     const candidates = entries
-      .filter((name) => /^Nexus-Agent-Setup-.*\.exe$/.test(name))
+      .filter((name) => /^Nexus-Agent-.*\.exe$/.test(name))
       .map((name) => {
         const full = path.join(distDir, name);
         return { name, full, mtime: fs.statSync(full).mtime };
@@ -33,7 +33,7 @@ module.exports = function registerInstaller(app) {
       });
     }
     const stats = fs.statSync(artifact.full);
-    const m = artifact.name.match(/Nexus-Agent-Setup-(.+)\.exe$/);
+    const m = artifact.name.match(/Nexus-Agent-(.+)\.exe$/);
     res.json({
       available: true,
       fileName: artifact.name,
@@ -49,7 +49,8 @@ module.exports = function registerInstaller(app) {
     if (!artifact) {
       return res.status(404).send('Installer not built. Run `npm --prefix agent run build` first.');
     }
-    res.download(artifact.full, 'Nexus-Agent-Setup.exe');
+    const downloadName = artifact.name.includes('Setup') ? 'Nexus-Agent-Setup.exe' : artifact.name;
+    res.download(artifact.full, downloadName);
   });
 
   // Legacy URL kept for older dashboard tile links.

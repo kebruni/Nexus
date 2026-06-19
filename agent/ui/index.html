@@ -426,8 +426,10 @@
     .nx-modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(7, 9, 13, 0.72);
-      backdrop-filter: blur(6px);
+      background:
+        radial-gradient(500px 360px at 50% 30%, rgba(91,127,255,0.16), transparent 70%),
+        rgba(7, 9, 13, 0.88);
+      backdrop-filter: blur(10px);
       display: none;
       align-items: center;
       justify-content: center;
@@ -435,24 +437,41 @@
     }
     .nx-modal-backdrop.is-open { display: flex; }
     .nx-modal {
-      width: min(380px, calc(100vw - 24px));
-      background: linear-gradient(180deg, #1A2029 0%, #12161C 100%);
+      width: min(400px, calc(100vw - 24px));
+      background: linear-gradient(180deg, #1B222D 0%, #11151B 100%);
       border: 1px solid var(--border-strong);
-      border-radius: 14px;
-      padding: 18px 18px 16px;
-      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.6);
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+      animation: modalIn .22s cubic-bezier(.2,.8,.2,1);
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(10px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .nx-connect-icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      box-shadow: 0 12px 28px -10px rgba(91,127,255,.75);
+      margin-bottom: 16px;
     }
     .nx-modal-title {
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 20px;
+      font-weight: 800;
       color: var(--fg-strong);
-      margin-bottom: 4px;
+      letter-spacing: -.025em;
+      margin-bottom: 7px;
     }
     .nx-modal-sub {
-      font-size: 11px;
+      font-size: 12px;
       color: var(--fg-muted);
-      line-height: 1.45;
-      margin-bottom: 14px;
+      line-height: 1.55;
+      margin-bottom: 20px;
     }
     .nx-modal-field {
       display: block;
@@ -464,18 +483,18 @@
       font-weight: 700;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--fg-dim);
-      margin-bottom: 6px;
+      color: var(--fg-muted);
+      margin-bottom: 8px;
     }
     .nx-modal-field input {
       width: 100%;
-      padding: 8px 10px;
-      background: #0F1318;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--fg);
+      padding: 13px 14px;
+      background: #0B0E13;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      color: var(--fg-strong);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-size: 13px;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .nx-modal-field input:focus {
@@ -491,19 +510,54 @@
       display: none;
     }
     .nx-modal-error.is-visible { display: block; }
+    .nx-connect-examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 9px;
+    }
+    .nx-connect-example {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.025);
+      color: var(--fg-muted);
+      border-radius: 999px;
+      padding: 5px 8px;
+      font: 500 9px 'JetBrains Mono', monospace;
+      cursor: pointer;
+    }
+    .nx-connect-example:hover {
+      color: var(--fg-strong);
+      border-color: rgba(124,140,255,.45);
+      background: var(--accent-soft);
+    }
+    .nx-secure-note {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      padding: 10px 11px;
+      margin: 14px 0 4px;
+      border: 1px solid rgba(46,204,113,.16);
+      background: rgba(46,204,113,.055);
+      border-radius: 11px;
+      color: var(--fg-muted);
+      font-size: 10.5px;
+      line-height: 1.45;
+    }
+    .nx-secure-note svg { flex: 0 0 auto; color: var(--ok); margin-top: 1px; }
     .nx-modal-actions {
       display: flex;
       gap: 8px;
       justify-content: flex-end;
-      margin-top: 6px;
+      margin-top: 16px;
     }
     .nx-modal-btn {
       appearance: none;
       border: 1px solid var(--border-strong);
       background: transparent;
       color: var(--fg);
-      padding: 7px 14px;
-      border-radius: 8px;
+      padding: 10px 15px;
+      border-radius: 10px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -514,6 +568,7 @@
       border-color: rgba(255, 255, 255, 0.20);
     }
     .nx-modal-btn.is-primary {
+      flex: 1;
       background: linear-gradient(135deg, var(--accent), var(--accent-strong));
       border-color: transparent;
       color: #fff;
@@ -522,6 +577,7 @@
     .nx-modal-btn.is-primary:hover {
       background: linear-gradient(135deg, var(--accent-strong), var(--accent));
     }
+    .nx-modal.is-first-run .nx-modal-btn:not(.is-primary) { display: none; }
   </style>
 </head>
 <body>
@@ -612,29 +668,37 @@
     <span id="hostname"></span>
   </div>
 
-  <!-- Connection settings modal -->
+  <!-- Uplink onboarding / settings -->
   <div id="conn-modal" class="nx-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="conn-modal-title">
     <div class="nx-modal">
-      <div id="conn-modal-title" class="nx-modal-title">Connection settings</div>
+      <div class="nx-connect-icon">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.1.1l2-2A5 5 0 0 0 12 4l-1.1 1.1"/>
+          <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/>
+        </svg>
+      </div>
+      <div id="conn-modal-title" class="nx-modal-title">Connect to your Nexus</div>
       <div class="nx-modal-sub">
-        Point this agent at a Nexus hub. Both fields must match what the server expects.
-        Saved to <code style="font-size:10px">%APPDATA%\PC Control Hub Agent\config.json</code> and re-applied immediately — no restart needed.
+        Enter the domain or IP address of the computer running your Nexus hub.
+        We’ll detect the correct protocol and connect automatically.
       </div>
       <label class="nx-modal-field">
-        <span class="nx-modal-label">Server URL</span>
-        <input id="conn-server" type="text" autocomplete="off" placeholder="https://system.example.com" />
+        <span class="nx-modal-label">Domain or IP address</span>
+        <input id="conn-server" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="nexus.example.com or 192.168.0.11" />
+        <div class="nx-connect-examples">
+          <button type="button" class="nx-connect-example" data-value="192.168.0.11">192.168.0.11</button>
+          <button type="button" class="nx-connect-example" data-value="localhost">localhost</button>
+          <button type="button" class="nx-connect-example" data-value="nexus.example.com">nexus.example.com</button>
+        </div>
       </label>
-      <label class="nx-modal-field">
-        <span class="nx-modal-label">Agent key</span>
-        <input id="conn-key" type="password" autocomplete="off" placeholder="shared agent secret" />
-        <span id="conn-key-hint" class="nx-modal-sub" style="margin-top:6px;margin-bottom:0;display:none">
-          A key is already configured. Leave blank to keep the existing one.
-        </span>
-      </label>
+      <div class="nx-secure-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>Your agent key is built into the application. You never need to copy or enter it here.</span>
+      </div>
       <div id="conn-error" class="nx-modal-error"></div>
       <div class="nx-modal-actions">
         <button type="button" class="nx-modal-btn" id="conn-cancel">Cancel</button>
-        <button type="button" class="nx-modal-btn is-primary" id="conn-save">Save &amp; reconnect</button>
+        <button type="button" class="nx-modal-btn is-primary" id="conn-save">Connect to Nexus</button>
       </div>
     </div>
   </div>
@@ -656,7 +720,7 @@
 
     let messageCounter = 0;
 
-    let agentInfo = { server: '', agentKeyConfigured: false };
+    let agentInfo = { server: '', agentKeyConfigured: false, needsSetup: false };
 
     // Init
     window.electronAPI.getAgentInfo().then(info => {
@@ -664,6 +728,7 @@
       document.getElementById('agent-id').innerText = info.agentId;
       document.getElementById('hostname').innerText = info.hostname;
       hostnameStat.innerText = info.hostname;
+      if (info.needsSetup) openConnModal(true);
     });
 
     // Status Updates
@@ -671,7 +736,7 @@
       if (data.online) {
         statusChip.classList.add('is-ok');
         statusText.innerText = 'Online';
-        const sUrl = data.serverUrl || 'connected';
+        const sUrl = data.server || data.serverUrl || agentInfo.server || 'connected';
         serverUrl.innerText = sUrl;
         uplinkStat.innerText = sUrl.replace(/^https?:\/\//, '');
       } else {
@@ -696,23 +761,16 @@
 
     const connModal = document.getElementById('conn-modal');
     const connServerInput = document.getElementById('conn-server');
-    const connKeyInput = document.getElementById('conn-key');
     const connErrorEl = document.getElementById('conn-error');
     const connCancelBtn = document.getElementById('conn-cancel');
     const connSaveBtn = document.getElementById('conn-save');
 
-    const connKeyHint = document.getElementById('conn-key-hint');
+    let firstRunSetup = false;
 
-    function openConnModal() {
-      connServerInput.value = agentInfo.server || 'https://';
-      connKeyInput.value = '';
-      if (agentInfo.agentKeyConfigured) {
-        connKeyInput.placeholder = '•••••••• (leave blank to keep existing)';
-        connKeyHint.style.display = 'block';
-      } else {
-        connKeyInput.placeholder = 'shared agent secret';
-        connKeyHint.style.display = 'none';
-      }
+    function openConnModal(isFirstRun = false) {
+      firstRunSetup = isFirstRun;
+      connModal.querySelector('.nx-modal').classList.toggle('is-first-run', isFirstRun);
+      connServerInput.value = isFirstRun ? '' : (agentInfo.server || '');
       connErrorEl.classList.remove('is-visible');
       connErrorEl.innerText = '';
       connModal.classList.add('is-open');
@@ -720,43 +778,41 @@
     }
 
     function closeConnModal() {
+      if (firstRunSetup) return;
       connModal.classList.remove('is-open');
     }
 
-    document.getElementById('edit-server').addEventListener('click', openConnModal);
+    document.getElementById('edit-server').addEventListener('click', () => openConnModal(false));
     connCancelBtn.addEventListener('click', closeConnModal);
     connModal.addEventListener('click', (e) => {
       if (e.target === connModal) closeConnModal();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && connModal.classList.contains('is-open')) closeConnModal();
+      if (e.key === 'Escape' && connModal.classList.contains('is-open') && !firstRunSetup) closeConnModal();
+    });
+
+    document.querySelectorAll('.nx-connect-example').forEach((button) => {
+      button.addEventListener('click', () => {
+        connServerInput.value = button.dataset.value;
+        connServerInput.focus();
+      });
+    });
+
+    connServerInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') connSaveBtn.click();
     });
 
     connSaveBtn.addEventListener('click', async () => {
       const rawServer = (connServerInput.value || '').trim();
-      // If the field still equals the prefilled current URL (or is the bare
-      // "https://" placeholder) treat it as unchanged — only send what the
-      // user actually wants updated.
-      const serverChanged = rawServer && rawServer !== 'https://' && rawServer !== agentInfo.server;
-      const serverVal = serverChanged ? rawServer : '';
-      const keyVal = (connKeyInput.value || '').trim();
-      if (!serverVal && !keyVal) {
-        connErrorEl.innerText = 'Nothing to update — change the URL or enter a new key.';
-        connErrorEl.classList.add('is-visible');
-        return;
-      }
-      if (serverVal && !/^https?:\/\//i.test(serverVal)) {
-        connErrorEl.innerText = 'Server URL must start with http:// or https://';
+      if (!rawServer) {
+        connErrorEl.innerText = 'Enter your Nexus domain or IP address.';
         connErrorEl.classList.add('is-visible');
         return;
       }
       connSaveBtn.disabled = true;
-      connSaveBtn.innerText = 'Saving…';
+      connSaveBtn.innerText = 'Connecting…';
       try {
-        const res = await window.electronAPI.updateConnection({
-          serverUrl: serverVal,
-          agentKey: keyVal,
-        });
+        const res = await window.electronAPI.updateServerUrl(rawServer);
         if (!res.success) {
           connErrorEl.innerText = res.error || 'Failed to save';
           connErrorEl.classList.add('is-visible');
@@ -764,13 +820,14 @@
         }
         agentInfo = {
           ...agentInfo,
-          server: serverVal || agentInfo.server,
-          agentKeyConfigured: agentInfo.agentKeyConfigured || !!keyVal,
+          server: res.serverUrl,
+          needsSetup: false,
         };
+        firstRunSetup = false;
         closeConnModal();
       } finally {
         connSaveBtn.disabled = false;
-        connSaveBtn.innerText = 'Save & reconnect';
+        connSaveBtn.innerText = 'Connect to Nexus';
       }
     });
 

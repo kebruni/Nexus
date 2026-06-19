@@ -2,7 +2,10 @@ const { io } = require('socket.io-client');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const notifier = require('node-notifier');
+let notifier = null;
+try {
+  notifier = require('node-notifier');
+} catch (_) {}
 const config = require('./config');
 const { getSystemInfo, collectMetrics } = require('./metrics');
 const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAction, lockScreen, soundAlarm } = require('./systemControl');
@@ -198,7 +201,7 @@ async function main() {
   socket.on('chat:message', ({ text, senderName }) => {
     console.log(`  [CHAT] From ${senderName}: ${text}`);
     
-    notifier.notify({
+    notifier?.notify({
       title: `Message from ${senderName || 'Admin'}`,
       message: text,
       sound: true,

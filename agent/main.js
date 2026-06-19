@@ -3,7 +3,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { io } = require('socket.io-client');
-const { resolveConfig, writePersistedConfig, CONFIG_FILE } = require('./runtimeConfig');
+const { resolveConfig, readPersistedConfig, writePersistedConfig, CONFIG_FILE } = require('./runtimeConfig');
 const { runtimePath } = require('./paths');
 const { getSystemInfo, collectMetrics } = require('./metrics');
 const { executeCommand, rebootComputer, shutdownComputer, getServices, serviceAction, lockScreen, soundAlarm } = require('./systemControl');
@@ -11,7 +11,6 @@ const { listDirectory, readFile, deleteFile } = require('./fileManager');
 const { startStreaming, stopStreaming, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
 const { getClipboard, setClipboard } = require('./clipboard');
 const vnc = require('./vnc');
-const notifier = require('node-notifier');
 
 let mainWindow;
 let tray;
@@ -136,7 +135,13 @@ app.whenReady().then(() => {
   enableAutoLaunchOnLogin();
   createWindow();
   createTray();
-  startAgentLogic();
+  // A fresh installation waits for the user to choose a hub. The installer
+  // still carries the private agent JWT, but it never guesses where to send it.
+  if (readPersistedConfig().serverUrl) {
+    startAgentLogic();
+  } else {
+    updateUI('status', { online: false, needsSetup: true });
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -221,23 +226,6 @@ async function startAgentLogic() {
         }
       });
       notification.show();
-    } else {
-      notifier.notify({
-        title: `Message from ${senderName || 'Admin'}`,
-        message: text,
-        icon: path.join(__dirname, 'assets/icon.png'),
-        appID: 'PC Control Hub Agent',
-        sound: true,
-        wait: true
-      }, (err, response, metadata) => {
-        // When user clicks the notification, show the window
-        if (response === 'activate' || response === 'clicked') {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
-        }
-      });
     }
   });
 
@@ -332,6 +320,7 @@ function updateUI(channel, data) {
 }
 
 ipcMain.handle('get-agent-info', async () => {
+  const persisted = readPersistedConfig();
   return {
     hostname: os.hostname(),
     agentId: AGENT_ID,
@@ -341,16 +330,44 @@ ipcMain.handle('get-agent-info', async () => {
     // hint in the connection settings modal.
     agentKeyConfigured: !!config.AGENT_KEY && config.AGENT_KEY !== 'agent-connection-key',
     configFile: CONFIG_FILE,
+    needsSetup: !persisted.serverUrl,
   };
 });
 
-ipcMain.handle('update-server-url', async (_event, serverUrl) => {
-  if (typeof serverUrl !== 'string' || !/^https?:\/\//i.test(serverUrl)) {
-    return { success: false, error: 'Invalid URL' };
+function normalizeServerUrl(value) {
+  if (typeof value !== 'string') return null;
+  let input = value.trim().replace(/\/+$/, '');
+  if (!input) return null;
+
+  if (!/^https?:\/\//i.test(input)) {
+    const host = input.split('/')[0].split(':')[0].toLowerCase();
+    const isLocal = host === 'localhost' || host === '127.0.0.1' ||
+      /^10\./.test(host) || /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    input = `${isLocal ? 'http' : 'https'}://${input}`;
   }
-  writePersistedConfig({ serverUrl: serverUrl.replace(/\/+$/, '') });
+
+  try {
+    const url = new URL(input);
+    if (!url.hostname || !['http:', 'https:'].includes(url.protocol)) return null;
+    const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1' ||
+      /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname);
+    if (!url.port && url.protocol === 'http:' && isLocal) url.port = '3000';
+    return url.toString().replace(/\/$/, '');
+  } catch (_) {
+    return null;
+  }
+}
+
+ipcMain.handle('update-server-url', async (_event, serverUrl) => {
+  const normalized = normalizeServerUrl(serverUrl);
+  if (!normalized) {
+    return { success: false, error: 'Enter a valid domain or IP address' };
+  }
+  writePersistedConfig({ serverUrl: normalized });
   reloadConnection();
-  return { success: true };
+  return { success: true, serverUrl: normalized };
 });
 
 ipcMain.handle('update-connection', async (_event, payload) => {

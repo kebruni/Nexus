@@ -11,20 +11,13 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "prebuild": "node scripts/bake-installer-defaults.js",
-    "build": "electron-builder build --win nsis --x64 --publish never",
-    "prebuild:portable": "node scripts/bake-installer-defaults.js",
-    "build:portable": "electron-builder build --win portable --x64 --publish never",
+    "build": "electron-builder build --win --x64 --publish never",
     "prebuild:dir": "node scripts/bake-installer-defaults.js",
     "build:dir": "electron-builder build --win --dir --x64",
-    "bake-installer-defaults": "node scripts/bake-installer-defaults.js",
-    "pkg-legacy": "pkg index.js --targets node18-win-x64 --output dist/pc-control-agent-console.exe"
+    "bake-installer-defaults": "node scripts/bake-installer-defaults.js"
   },
   "dependencies": {
-    "diplom-project": "file:..",
     "iconv-lite": "^0.7.2",
-    "node-notifier": "^10.0.1",
-    "node-os-utils": "^2.0.1",
-    "node-ssh": "^13.2.1",
     "screenshot-desktop": "^1.15.3",
     "socket.io-client": "^4.8.3",
     "systeminformation": "^5.31.3",
@@ -40,6 +33,11 @@
     "productName": "Nexus Agent",
     "copyright": "Copyright (c) 2024-2025 Nexus",
     "asar": true,
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US",
+      "ru"
+    ],
     "directories": {
       "output": "dist-gui",
       "buildResources": "assets"
@@ -71,6 +69,12 @@
     "win": {
       "target": [
         {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "nsis",
           "arch": [
             "x64"
@@ -78,10 +82,13 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "Nexus-Agent-Setup-${version}.${ext}",
+      "artifactName": "Nexus-Agent-${version}.${ext}",
       "executableName": "Nexus Agent",
       "requestedExecutionLevel": "asInvoker",
       "publisherName": "Nexus"
+    },
+    "portable": {
+      "artifactName": "Nexus-Agent-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
