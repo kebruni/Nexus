@@ -283,6 +283,9 @@ async function sendMonitorList() {
  */
 function sendStats(totalBytes, fps) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    console.log(`  [VNC] sendStats: bytes=${totalBytes}, fps=${fps}`);
+  } catch (e) {}
   const buf = Buffer.alloc(7);
   buf[0] = MSG.STATS;
   buf.writeUInt32LE(totalBytes, 1);

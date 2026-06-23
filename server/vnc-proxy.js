@@ -150,12 +150,30 @@ function attachVncProxy(httpServer, { jwtSecret, agentSecret, verifyAgentToken, 
 
     ws.on('message', (data) => {
       if (!(data instanceof Buffer)) return;
+      const frameType = data[0];
+      // Handle stats message separately for logging
+      if (frameType === MSG.STATS) {
+        if (data.length >= 7) {
+          const totalBytes = data.readUInt32LE(1);
+          const fps = data.readUInt16LE(5);
+          console.log(`[VNC] Stats from agent ${agentId}: bytes=${totalBytes}, fps=${fps}`);
+        } else {
+          console.log(`[VNC] Stats from agent ${agentId}: malformed length=${data.length}`);
+        }
+        // still relay stats to viewers
+      }
+      const isFrame = frameType === MSG.FRAME;
+      if (isFrame) console.log(`[VNC] Agent frame: ${agentId}, size=${data.length}`);
       // Relay binary data from agent to all dashboard viewers for this agent
       const viewers = dashboardSockets.get(agentId);
-      if (!viewers || viewers.length === 0) return;
+      if (!viewers || viewers.length === 0) {
+        if (isFrame) console.warn(`[VNC] Agent ${agentId} frame dropped: no viewers`);
+        return;
+      }
       for (const v of viewers) {
         if (v.readyState === 1) {
           v.send(data);
+          if (isFrame) console.log(`[VNC] Frame relayed to 1 viewer, total=${viewers.length}`);
         }
       }
     });
@@ -195,14 +213,24 @@ function attachVncProxy(httpServer, { jwtSecret, agentSecret, verifyAgentToken, 
       const readyMsg = Buffer.alloc(1);
       readyMsg[0] = MSG.AGENT_READY;
       ws.send(readyMsg);
+    } else {
+      const goneMsg = Buffer.alloc(1);
+      goneMsg[0] = MSG.AGENT_GONE;
+      ws.send(goneMsg);
+      console.log(`[VNC] No agent ${agentId} currently connected for viewer ${user.username}`);
     }
 
     ws.on('message', (data) => {
       if (!(data instanceof Buffer)) return;
+      const msgType = data[0];
+      const msgNames = {0x10: 'MOUSE', 0x11: 'KEYBOARD', 0x12: 'START', 0x13: 'STOP', 0x14: 'GET_MONITORS'};
+      console.log(`[VNC] Dashboard → agent ${agentId}: ${msgNames[msgType] || `type=${msgType}`}`);
       // Relay commands from dashboard to agent
       const agentWs = agentSockets.get(agentId);
       if (agentWs && agentWs.readyState === 1) {
         agentWs.send(data);
+      } else {
+        console.warn(`[VNC] Dashboard command dropped because agent ${agentId} is not connected`);
       }
     });
 

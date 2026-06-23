@@ -67,6 +67,7 @@ function parseMessage(
       if (buf.length <= 5) return;
       const jpegData = buf.slice(5);
       const blob = new Blob([jpegData], { type: 'image/jpeg' });
+      console.log(`[VNC] Frame received: ${blob.size} bytes`);
       callbacks.onFrame(blob);
       break;
     }
@@ -176,8 +177,13 @@ export function useVncSocket({
       }
     };
 
-    ws.onmessage = (event) => {
-      const buf = new Uint8Array(event.data as ArrayBuffer);
+    ws.onmessage = async (event) => {
+      let data = event.data;
+      if (data instanceof Blob) {
+        data = await data.arrayBuffer();
+      }
+      if (!(data instanceof ArrayBuffer)) return;
+      const buf = new Uint8Array(data);
       if (buf.length < 1) return;
       parseMessage(buf, callbacksRef.current, setAgentOnline);
     };
