@@ -30,6 +30,15 @@ const app = express();
 // from behind the proxy looks like the same source.
 app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Failed to start server: port ${config.PORT} is already in use.\n` +
+      `Stop the other process or set PORT to a free value before retrying.`);
+    process.exit(1);
+  }
+  console.error('Server error:', err);
+  process.exit(1);
+});
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
   maxHttpBufferSize: 10 * 1024 * 1024, // 10MB for screenshots
@@ -50,7 +59,25 @@ app.use(express.json({ limit: '5mb' }));
 // priority because they're declared before the SPA fallback.
 const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
 const HAS_CLIENT_DIST = fs.existsSync(path.join(CLIENT_DIST, 'index.html'));
-if (HAS_CLIENT_DIST) app.use(express.static(CLIENT_DIST));
+if (HAS_CLIENT_DIST) {
+  app.use(express.static(CLIENT_DIST));
+  app.get(/.*/, (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const reqPath = req.path;
+    if (
+      reqPath === '/AgentSetup.exe' ||
+      reqPath === '/socket.io' ||
+      reqPath.startsWith('/socket.io/') ||
+      reqPath === '/agent' ||
+      reqPath.startsWith('/agent/') ||
+      reqPath === '/api' ||
+      reqPath.startsWith('/api/')
+    ) {
+      return next();
+    }
+    res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+  });
+}
 
 // ── Socket.IO namespaces ─────────────────────────────────
 const agentNsp = io.of('/agent');
