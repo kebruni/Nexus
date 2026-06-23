@@ -4,13 +4,13 @@
  * Resolution order (highest priority wins):
  *   1. Process env var (SERVER_URL, AGENT_KEY)
  *   2. CLI flag (--server=https://..., --agent-key=...)
- *   3. User-editable config.json under userData (filled by the installer
- *      first-run wizard or by the user manually)
- *   4. Built-in default from config.js
+ *   3. Built-in installer defaults baked during the Windows agent build
+ *   4. User-editable config.json under userData for the server URL
+ *   5. Built-in default from config.js
  *
- * This way an installed Windows app can be repointed at a different server
- * without recompiling — the user just edits
- * `%APPDATA%\PC Control Hub Agent\config.json`.
+ * The installed Windows app can be repointed at a different server without
+ * recompiling. The private agent JWT is baked into the app at build time, so
+ * users only enter the Nexus domain or IP address.
  */
 
 const fs = require('fs');
@@ -64,8 +64,8 @@ function resolveConfig() {
     AGENT_KEY:
       process.env.AGENT_KEY ||
       readCliFlag('agent-key') ||
-      persisted.agentKey ||
       INSTALLER_DEFAULTS.agentKey ||
+      persisted.agentKey ||
       defaults.AGENT_KEY,
     CONFIG_FILE,
   };

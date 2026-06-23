@@ -12,7 +12,7 @@
  * Layout of installerDefaults.json:
  *   {
  *     "serverUrl": "https://nexus.example.com",
- *     "agentKey": "<shared agent secret>"
+ *     "agentKey": "<baked agent JWT>"
  *   }
  */
 

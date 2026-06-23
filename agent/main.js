@@ -325,10 +325,6 @@ ipcMain.handle('get-agent-info', async () => {
     hostname: os.hostname(),
     agentId: AGENT_ID,
     server: config.SERVER_URL,
-    // Never send the raw key to the renderer. The UI only needs to know
-    // whether one is configured so it can render the "leave blank to keep"
-    // hint in the connection settings modal.
-    agentKeyConfigured: !!config.AGENT_KEY && config.AGENT_KEY !== 'agent-connection-key',
     configFile: CONFIG_FILE,
     needsSetup: !persisted.serverUrl,
   };
@@ -368,25 +364,6 @@ ipcMain.handle('update-server-url', async (_event, serverUrl) => {
   writePersistedConfig({ serverUrl: normalized });
   reloadConnection();
   return { success: true, serverUrl: normalized };
-});
-
-ipcMain.handle('update-connection', async (_event, payload) => {
-  const updates = {};
-  if (payload && typeof payload.serverUrl === 'string' && payload.serverUrl.trim()) {
-    if (!/^https?:\/\//i.test(payload.serverUrl.trim())) {
-      return { success: false, error: 'Invalid URL — must start with http:// or https://' };
-    }
-    updates.serverUrl = payload.serverUrl.trim().replace(/\/+$/, '');
-  }
-  if (payload && typeof payload.agentKey === 'string' && payload.agentKey.trim()) {
-    updates.agentKey = payload.agentKey.trim();
-  }
-  if (Object.keys(updates).length === 0) {
-    return { success: false, error: 'Nothing to update' };
-  }
-  writePersistedConfig(updates);
-  reloadConnection();
-  return { success: true };
 });
 
 function reloadConnection() {
