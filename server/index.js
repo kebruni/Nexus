@@ -59,6 +59,9 @@ app.use(express.json({ limit: '5mb' }));
 // priority because they're declared before the SPA fallback.
 const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
 const HAS_CLIENT_DIST = fs.existsSync(path.join(CLIENT_DIST, 'index.html'));
+if (!HAS_CLIENT_DIST) {
+  console.warn('[Server] client/dist not found. Build the client before starting the server to enable SPA routes.');
+}
 if (HAS_CLIENT_DIST) {
   app.use(express.static(CLIENT_DIST));
   app.get(/.*/, (req, res, next) => {
