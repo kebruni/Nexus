@@ -29,8 +29,8 @@ interface RemoteDesktopProps {
 export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
   const { isDark } = useTheme();
   const [streaming, setStreaming] = useState(false);
-  const [fps, setFps] = useState(5);
-  const [quality, setQuality] = useState(30);
+  const [fps, setFps] = useState(10);
+  const [quality, setQuality] = useState(50);
   const [inputEnabled, setInputEnabled] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
@@ -691,6 +691,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
                 <option value={2} className="bg-slate-800">2</option>
                 <option value={5} className="bg-slate-800">5</option>
                 <option value={10} className="bg-slate-800">10</option>
+                <option value={15} className="bg-slate-800">15</option>
               </select>
             </div>
 
@@ -708,6 +709,7 @@ export default function RemoteDesktop({ agentId }: RemoteDesktopProps) {
                 <option value={30} className="bg-slate-800">Med</option>
                 <option value={50} className="bg-slate-800">High</option>
                 <option value={70} className="bg-slate-800">Ultra</option>
+                <option value={85} className="bg-slate-800">Max</option>
               </select>
             </div>
 

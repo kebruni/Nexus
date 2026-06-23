@@ -69,7 +69,7 @@ let streamingActive = false;
 let mousePositionInterval = null;
 let lastMouseX = 0;
 let lastMouseY = 0;
-const MAX_STREAM_FPS = 5;
+const MAX_STREAM_FPS = 10;
 const FALLBACK_MOUSE_POLL_INTERVAL = robot ? 150 : 1000;
 
 function runPowerShell(script, onErrorTag, callback) {

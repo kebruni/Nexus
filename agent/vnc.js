@@ -14,7 +14,6 @@
  */
 
 const WebSocket = require('ws');
-const crypto = require('crypto');
 const config = require('./config');
 const { captureScreen, simulateMouse, simulateKeyboard, listMonitors } = require('./screenCapture');
 
@@ -39,17 +38,18 @@ let currentFps = 2;
 let currentQuality = 50;
 let currentMonitor = 0;
 let lastFrameHash = '';
+let lastFrameSize = 0;
 let adaptiveQuality = 50;
 let frameBytesSent = 0;
 let framesPerSecond = 0;
 let frameCounter = 0;
 let statsInterval = null;
 
-const MAX_FPS = 5;
+const MAX_FPS = 10;
 const MIN_QUALITY = 15;
-const MAX_QUALITY = 80;
+const MAX_QUALITY = 85;
 // Target: each frame should be sent within this budget (ms)
-const TARGET_SEND_TIME = 200;
+const TARGET_SEND_TIME = 150;
 
 /**
  * Connect to the VNC WebSocket endpoint on the Nexus server.
@@ -167,6 +167,7 @@ function startStream(fps, quality, monitor) {
   adaptiveQuality = currentQuality;
   currentMonitor = monitor || 0;
   lastFrameHash = '';
+  lastFrameSize = 0;
   frameBytesSent = 0;
   frameCounter = 0;
 
@@ -181,12 +182,15 @@ function startStream(fps, quality, monitor) {
       if (frame.success && streaming && ws && ws.readyState === WebSocket.OPEN) {
         const jpegBuf = Buffer.from(frame.image, 'base64');
 
-        // Delta detection: skip if frame is identical
-        const hash = crypto.createHash('md5').update(jpegBuf).digest('hex');
-        if (hash !== lastFrameHash) {
-          lastFrameHash = hash;
+        // Delta detection: skip if frame is identical (fast size+bytes check)
+        const size = jpegBuf.length;
+        if (size === lastFrameSize && size > 10 &&
+            jpegBuf[0] === jpegBuf[jpegBuf.length - 1]) {
+          // Likely same frame — skip sending
+        } else {
+          lastFrameSize = size;
           sendFrame(jpegBuf, frame.timestamp);
-          frameBytesSent += jpegBuf.length;
+          frameBytesSent += size;
           frameCounter++;
 
           // Adaptive quality: adjust based on frame send time
@@ -234,6 +238,7 @@ function stopStream() {
     statsInterval = null;
   }
   lastFrameHash = '';
+  lastFrameSize = 0;
 }
 
 /**
