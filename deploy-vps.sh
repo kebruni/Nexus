@@ -1,24 +1,44 @@
 #!/bin/bash
-# Deployment script for VPS
-# Run this on the VPS: ssh -p 2222 nurbe@164.92.240.90
-# Then: cd /opt/Nexus && bash deploy-vps.sh
+###############################################################################
+# scripts/deploy-vps.sh — production deploy on the VPS
+#
+# Run on the VPS as the nexus user (or via sudo -u nexus):
+#   cd /opt/Nexus && bash deploy-vps.sh
+#
+# Pulls latest code, installs deps, rebuilds the client dashboard,
+# and restarts the systemd service.
+###############################################################################
+set -euo pipefail
 
 cd /opt/Nexus
 
-# Pull latest changes
-git pull origin main
+echo "==> Pulling latest code"
+git pull --ff-only origin main
 
-# Install dependencies
-npm install
+echo "==> Installing server dependencies"
+npm --prefix server install --omit=dev
 
-# Install server dependencies
-cd server && npm install && cd ..
+echo "==> Installing client dependencies"
+npm --prefix client install
 
-# Install agent dependencies
-cd agent && npm install && cd ..
+echo "==> Building client dashboard"
+npm --prefix client run build
 
-# Restart services (adjust based on your setup)
-# pm2 restart all
-# or systemctl restart nexus
+echo "==> Restarting nexus-server service"
+sudo systemctl restart nexus-server
 
-echo "Deployment completed!"
+echo "==> Waiting for health check"
+for i in $(seq 1 10); do
+  if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+    echo "healthy"
+    curl -s http://127.0.0.1:3000/api/health
+    echo ""
+    echo "==> Deploy completed successfully"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "ERROR: server not healthy after 20s" >&2
+sudo journalctl -u nexus-server -n 30 --no-pager >&2
+exit 1

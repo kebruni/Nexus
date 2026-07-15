@@ -15,6 +15,12 @@ agent/dist-gui/
 agent/dist-gui-2/
 agent/dist-gui-3/
 
+# Committed build artifacts (should never be in git)
+client-dist.tar.gz
+deploy.tar.gz
+client/dist.zip
+client/public/agent-source.zip
+
 # ── Runtime state ────────────────────────────────────────
 # Persisted store + auto-generated secrets (server)
 .data/
