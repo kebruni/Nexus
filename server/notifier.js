@@ -16,7 +16,40 @@ const SEVERITY_RANK = { warning: 0, critical: 1 };
 
 const FETCH_TIMEOUT_MS = 8_000;
 
+const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadata']);
+const BLOCKED_SUFFIXES = ['.local', '.internal', '.localhost'];
+
+function isPrivateIP(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return false;
+  const a = +m[1], b = +m[2];
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a >= 224) return true;
+  return false;
+}
+
+function isUrlSafe(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const h = u.hostname.toLowerCase().replace(/^\[|]$/g, '');
+    if (BLOCKED_HOSTS.has(h)) return false;
+    if (BLOCKED_SUFFIXES.some((s) => h.endsWith(s))) return false;
+    if (isPrivateIP(h)) return false;
+    if (h.includes(':')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function postJson(url, body, extraHeaders = {}) {
+  if (!isUrlSafe(url)) {
+    return Promise.resolve({ ok: false, status: 0, body: 'URL blocked (private/internal/non-http)' });
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   return fetch(url, {

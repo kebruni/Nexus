@@ -115,6 +115,17 @@ function attachVncProxy(httpServer, { jwtSecret, agentSecret, verifyAgentToken, 
       }
       try {
         const decoded = jwt.verify(token, jwtSecret);
+        const role = decoded.role || 'viewer';
+        if (role !== 'operator' && role !== 'admin') {
+          socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        if (decoded.mustChangePassword) {
+          socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+          socket.destroy();
+          return;
+        }
         const agentId = query.agentId;
         if (!agentId) {
           socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');

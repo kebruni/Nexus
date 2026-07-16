@@ -23,8 +23,10 @@ function findArtifact() {
   }
 }
 
-module.exports = function registerInstaller(app) {
-  app.get('/api/agent/installer/info', (_req, res) => {
+module.exports = function registerInstaller(app, { auth, store }) {
+  const { authMiddleware } = auth;
+
+  app.get('/api/agent/installer/info', authMiddleware, (_req, res) => {
     const artifact = findArtifact();
     if (!artifact) {
       return res.status(404).json({
@@ -44,15 +46,16 @@ module.exports = function registerInstaller(app) {
     });
   });
 
-  app.get('/api/agent/installer/download', (_req, res) => {
+  app.get('/api/agent/installer/download', authMiddleware, (req, res) => {
     const artifact = findArtifact();
     if (!artifact) {
       return res.status(404).send('Installer not built. Run `npm --prefix agent run build` first.');
     }
     const downloadName = artifact.name.includes('Setup') ? 'Nexus-Agent-Setup.exe' : artifact.name;
+    if (store) store.addEvent('agent_installer_downloaded', `Agent installer downloaded by ${req.user.username}`, null, req.user.username);
     res.download(artifact.full, downloadName);
   });
 
   // Legacy URL kept for older dashboard tile links.
-  app.get('/AgentSetup.exe', (_req, res) => res.redirect(302, '/api/agent/installer/download'));
+  app.get('/AgentSetup.exe', authMiddleware, (_req, res) => res.redirect(302, '/api/agent/installer/download'));
 };

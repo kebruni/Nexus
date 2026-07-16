@@ -117,10 +117,18 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
 
     // ── Local (server) file operations ──────────────────────
     socket.on('local:file:list', ({ dirPath }) => {
+      if (!hasRole(socket, 'admin')) {
+        socket.emit('local:file:list:result', { error: 'Forbidden' });
+        return;
+      }
       socket.emit('local:file:list:result', localFs.listDirectory(dirPath));
     });
 
     socket.on('local:file:read', ({ filePath }) => {
+      if (!hasRole(socket, 'admin')) {
+        socket.emit('local:file:read:result', { error: 'Forbidden' });
+        return;
+      }
       socket.emit('local:file:read:result', localFs.readFile(filePath));
     });
 
@@ -223,6 +231,7 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
 
     // ── Screen streaming ────────────────────────────────────
     socket.on('screen:stop', ({ agentId }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'screen:stop');
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) agentSocket.emit('screen:stop');
     });
@@ -252,11 +261,13 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
     });
 
     socket.on('screen:getMonitors', ({ agentId }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'screen:getMonitors');
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) agentSocket.emit('screen:getMonitors');
     });
 
     socket.on('screen:start', ({ agentId, quality, fps, monitor }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'screen:start');
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) {
         store.addEvent('screen_start', 'Admin started screen viewing', agentId, socket.user.username);
@@ -266,6 +277,7 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
 
     // ── Chat ─────────────────────────────────────────────────
     socket.on('chat:send', ({ agentId, text }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'chat:send');
       const msg = store.addChatMessage(agentId, 'admin', socket.user.username, text);
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) agentSocket.emit('chat:message', { text, senderName: socket.user.username });
@@ -274,10 +286,12 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
 
     // ── Clipboard ───────────────────────────────────────────
     socket.on('clipboard:send', ({ agentId, text }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'clipboard:send');
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) agentSocket.emit('clipboard:set', { text });
     });
     socket.on('clipboard:request', ({ agentId }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'clipboard:request');
       const agentSocket = findAgentSocket(agentId);
       if (agentSocket) agentSocket.emit('clipboard:get');
     });
@@ -334,6 +348,7 @@ module.exports = function registerDashboardSockets({ dashNsp, store, orchestrati
 
     // ── Wake-on-LAN ─────────────────────────────────────────
     socket.on('wol:send', ({ macAddress, agentId: targetId }) => {
+      if (!hasRole(socket, 'operator')) return deny(socket, 'wol:send');
       try {
         const mac = macAddress.replace(/[:-]/g, '');
         const macBuffer = Buffer.from(mac, 'hex');
