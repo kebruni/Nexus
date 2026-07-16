@@ -50,3 +50,11 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ── Deployment (internal) ────────────────────────────────
+docs/DEPLOY.md
+docs/SETUP.md
+docs/LOCAL.md
+deploy/
+deploy-vps.sh
+nexus.conf

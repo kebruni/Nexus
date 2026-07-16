@@ -79,20 +79,6 @@ Open `http://localhost:5173`. Default login: `admin / admin123` (prompts passwor
 
 ---
 
-## Production deploy
-
-**Live:** `https://nexus.kebruni.me` (VPS Debian 12, user `nurbe`)
-
-```bash
-# On the VPS:
-cd /opt/Nexus
-bash deploy-vps.sh     # git pull → npm install → client build → systemctl restart
-```
-
-See [`docs/DEPLOY.md`](./docs/DEPLOY.md) for the full Debian 12 + systemd + nginx + Let's Encrypt guide.
-
----
-
 ## Project structure
 
 ```
