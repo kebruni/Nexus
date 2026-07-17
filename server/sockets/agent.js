@@ -10,7 +10,9 @@ const pushSender = require('../pushSender');
 module.exports = function registerAgentSockets({ agentNsp, dashNsp, store, notifier }) {
   agentNsp.on('connection', (socket) => {
     const agentInfo = socket.handshake.auth;
-    const agentId = agentInfo.agentId || socket.id;
+    const tokenInfo = socket.agentToken;
+    // Server-assigned agentId from token — never trust client-supplied id
+    const agentId = (tokenInfo && tokenInfo.id) || agentInfo.agentId || socket.id;
 
     console.log(`[Agent Connected] ${agentInfo.hostname} (${agentId})`);
 

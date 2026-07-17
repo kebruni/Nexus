@@ -67,9 +67,12 @@ function readFile(filePath) {
 function writeFile(fileName, base64Data, destDir) {
   try {
     const targetDir = path.resolve(destDir || 'C:\\');
-    const targetPath = path.join(targetDir, fileName);
-    // Prevent path traversal
-    if (!targetPath.startsWith(targetDir)) return { success: false, error: 'Invalid path' };
+    const sanitized = path.basename(fileName);
+    const targetPath = path.join(targetDir, sanitized);
+    const rel = path.relative(targetDir, targetPath);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { success: false, error: 'Invalid path' };
+    }
     fs.writeFileSync(targetPath, Buffer.from(base64Data, 'base64'));
     return { success: true, path: targetPath };
   } catch (error) {

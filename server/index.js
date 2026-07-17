@@ -39,18 +39,22 @@ server.on('error', (err) => {
   console.error('Server error:', err);
   process.exit(1);
 });
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+  : (process.env.NODE_ENV === 'production' ? 'https://nexus.kebruni.me' : 'http://localhost:5173');
+
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: corsOrigins, methods: ['GET', 'POST'] },
   maxHttpBufferSize: 10 * 1024 * 1024, // 10MB for screenshots
   pingInterval: 30000,
   pingTimeout: 60000,
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
+    skipMiddlewares: false,
   },
 });
 
-app.use(cors());
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json({ limit: '5mb' }));
 
 // ── Static dashboard (production build) ───────────────────

@@ -94,8 +94,14 @@ function attachVncProxy(httpServer, { jwtSecret, agentSecret, verifyAgentToken, 
           if (touchAgentToken) touchAgentToken(tokenInfo.id);
         }
       }
-      if (!authenticated && agentKey === agentSecret) {
-        authenticated = true;
+      if (!authenticated && agentKey && agentSecret) {
+        // Constant-time comparison for legacy shared secret
+        const crypto = require('crypto');
+        const keyBuf = Buffer.from(agentKey);
+        const secretBuf = Buffer.from(agentSecret);
+        if (keyBuf.length === secretBuf.length && crypto.timingSafeEqual(keyBuf, secretBuf)) {
+          authenticated = true;
+        }
       }
       if (!authenticated) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
